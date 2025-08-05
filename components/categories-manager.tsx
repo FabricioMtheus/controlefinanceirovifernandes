@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, Edit, Plus, Tag, TrendingUp, TrendingDown, Loader2 } from "lucide-react"
-import { createSupabaseBrowserClient } from "@/lib/supabase/client"
+
 
 interface Category {
   id: string

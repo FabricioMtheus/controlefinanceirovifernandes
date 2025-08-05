@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Trash2, Edit, Plus, Repeat, Play, Pause, Loader2 } from "lucide-react"
-import { createSupabaseBrowserClient } from "@/lib/supabase/client"
+
 
 interface RecurringTransaction {
   id: string

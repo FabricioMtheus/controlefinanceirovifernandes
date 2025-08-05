@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Trash2, Edit, Plus, Calendar, Loader2 } from "lucide-react"
-import { createSupabaseBrowserClient } from "@/lib/supabase/client"
+
 
 interface CardDetails {
   id: string
