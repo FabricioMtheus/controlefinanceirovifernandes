@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Trash2, Edit, Plus, Calendar, Loader2 } from "lucide-react"
-
+import { apiClient } from "@/lib/api"
 
 interface CardDetails {
   id: string
@@ -34,7 +34,6 @@ interface CardDetails {
 }
 
 export function CreditCardManager() {
-  const supabase = createSupabaseBrowserClient()
   const [cards, setCards] = useState<CardDetails[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingCard, setEditingCard] = useState<CardDetails | null>(null)
@@ -52,15 +51,15 @@ export function CreditCardManager() {
 
   const fetchCards = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase.from("credit_cards").select("*").order("created_at", { ascending: false })
-
-    if (error) {
+    try {
+      const data = await apiClient.get<CardDetails>("credit_cards")
+      setCards(data)
+    } catch (error) {
       console.error("Error fetching credit cards:", error)
-    } else {
-      setCards(data as CardDetails[])
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     fetchCards()
@@ -126,26 +125,20 @@ export function CreditCardManager() {
       brand: formData.brand,
     }
 
-    if (editingCard) {
-      const { data, error } = await supabase.from("credit_cards").update(cardData).eq("id", editingCard.id).select()
-
-      if (error) {
-        console.error("Error updating card:", error)
+    try {
+      if (editingCard) {
+        const updatedCard = await apiClient.put<CardDetails>("credit_cards", editingCard.id, cardData)
+        setCards(cards.map((card) => (card.id === editingCard.id ? updatedCard : card)))
       } else {
-        setCards(cards.map((card) => (card.id === editingCard.id ? (data[0] as CardDetails) : card)))
+        const newCard = await apiClient.post<CardDetails>("credit_cards", cardData)
+        setCards([newCard, ...cards])
       }
-    } else {
-      const { data, error } = await supabase.from("credit_cards").insert(cardData).select()
-
-      if (error) {
-        console.error("Error creating card:", error)
-      } else {
-        setCards([data[0] as CardDetails, ...cards])
-      }
+      resetForm()
+    } catch (error) {
+      console.error("Error saving card:", error)
+    } finally {
+      setSubmitting(false)
     }
-
-    setSubmitting(false)
-    resetForm()
   }
 
   const resetForm = () => {
@@ -180,12 +173,12 @@ export function CreditCardManager() {
     if (!window.confirm("Tem certeza que deseja excluir este cartão?")) {
       return
     }
-    const { error } = await supabase.from("credit_cards").delete().eq("id", id)
 
-    if (error) {
-      console.error("Error deleting card:", error)
-    } else {
+    try {
+      await apiClient.delete("credit_cards", id)
       setCards(cards.filter((card) => card.id !== id))
+    } catch (error) {
+      console.error("Error deleting card:", error)
     }
   }
 

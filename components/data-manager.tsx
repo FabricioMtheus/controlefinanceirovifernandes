@@ -1,145 +1,102 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import {
-  Download,
-  Upload,
-  Trash2,
-  Database,
-  AlertTriangle,
-  CheckCircle,
-  Info,
-  Cloud,
-  CloudOff,
-  User,
-  LogOut,
-  RefreshCw,
-} from "lucide-react"
-import { apiClient } from "@/lib/api"
-import { localStorageManager } from "@/lib/local-storage"
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Download, Upload, Trash2, FileText, Cloud, CloudOff, RefreshCw, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { cleanApiClient } from "@/lib/api-clean"
 import { googleDriveManager } from "@/lib/google-drive"
+import { useFinance } from "@/lib/finance-context"
 
 export function DataManager() {
-  const [importing, setImporting] = useState(false)
-  const [syncing, setSyncing] = useState(false)
-  const [googleUser, setGoogleUser] = useState<any>(null)
-  const [isGoogleReady, setIsGoogleReady] = useState(false)
-  const [backups, setBackups] = useState<any[]>([])
-  const [message, setMessage] = useState<{ type: "success" | "error" | "info"; text: string } | null>(null)
+  const { refreshData } = useFinance()
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false)
+  const [googleFiles, setGoogleFiles] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
   useEffect(() => {
-    initializeGoogle()
+    checkGoogleConnection()
   }, [])
 
-  const initializeGoogle = async () => {
-    try {
-      const initialized = await googleDriveManager.initialize()
-      setIsGoogleReady(initialized)
-
-      if (initialized && googleDriveManager.isSignedIn()) {
-        setGoogleUser(googleDriveManager.getUserInfo())
-        loadBackupsList()
-      }
-    } catch (error) {
-      console.error("Erro ao inicializar Google:", error)
-    }
+  const checkGoogleConnection = () => {
+    setIsGoogleConnected(googleDriveManager.getSignInStatus())
   }
 
-  const loadBackupsList = async () => {
-    try {
-      const backupsList = await googleDriveManager.listBackups()
-      setBackups(backupsList)
-    } catch (error) {
-      console.error("Erro ao carregar lista de backups:", error)
-    }
+  const showMessage = (type: "success" | "error", text: string) => {
+    setMessage({ type, text })
+    setTimeout(() => setMessage(null), 5000)
   }
 
   const handleGoogleSignIn = async () => {
+    setLoading(true)
     try {
       const success = await googleDriveManager.signIn()
       if (success) {
-        setGoogleUser(googleDriveManager.getUserInfo())
-        setMessage({ type: "success", text: "Conectado ao Google Drive!" })
-        loadBackupsList()
+        setIsGoogleConnected(true)
+        showMessage("success", "Conectado ao Google Drive com sucesso!")
+        await loadGoogleFiles()
+      } else {
+        showMessage("error", "Falha ao conectar com Google Drive")
       }
     } catch (error) {
-      setMessage({ type: "error", text: "Erro ao conectar com Google Drive" })
+      console.error("Google sign in error:", error)
+      showMessage("error", "Erro ao conectar com Google Drive")
+    } finally {
+      setLoading(false)
     }
   }
 
   const handleGoogleSignOut = async () => {
+    setLoading(true)
     try {
       await googleDriveManager.signOut()
-      setGoogleUser(null)
-      setBackups([])
-      setMessage({ type: "info", text: "Desconectado do Google Drive" })
+      setIsGoogleConnected(false)
+      setGoogleFiles([])
+      showMessage("success", "Desconectado do Google Drive")
     } catch (error) {
-      setMessage({ type: "error", text: "Erro ao desconectar" })
-    }
-  }
-
-  const handleSyncToGoogle = async () => {
-    if (!googleUser) {
-      setMessage({ type: "error", text: "Faça login no Google Drive primeiro" })
-      return
-    }
-
-    setSyncing(true)
-    try {
-      const localData = localStorageManager.loadData()
-      const success = await googleDriveManager.saveToGoogleDrive(localData)
-
-      if (success) {
-        setMessage({ type: "success", text: "Dados sincronizados com Google Drive!" })
-        loadBackupsList()
-      } else {
-        setMessage({ type: "error", text: "Erro ao sincronizar com Google Drive" })
-      }
-    } catch (error) {
-      setMessage({ type: "error", text: "Erro na sincronização" })
+      console.error("Google sign out error:", error)
+      showMessage("error", "Erro ao desconectar do Google Drive")
     } finally {
-      setSyncing(false)
+      setLoading(false)
     }
   }
 
-  const handleSyncFromGoogle = async () => {
-    if (!googleUser) {
-      setMessage({ type: "error", text: "Faça login no Google Drive primeiro" })
-      return
-    }
+  const loadGoogleFiles = async () => {
+    if (!isGoogleConnected) return
 
-    setSyncing(true)
+    setLoading(true)
     try {
-      const googleData = await googleDriveManager.loadFromGoogleDrive()
-
-      if (googleData) {
-        localStorageManager.saveData(googleData)
-        setMessage({ type: "success", text: "Dados restaurados do Google Drive! Recarregando..." })
-        setTimeout(() => window.location.reload(), 2000)
-      } else {
-        setMessage({ type: "info", text: "Nenhum backup encontrado no Google Drive" })
-      }
+      const files = await googleDriveManager.listFiles()
+      setGoogleFiles(files.filter(file => file.name.includes('financial-backup')))
     } catch (error) {
-      setMessage({ type: "error", text: "Erro ao carregar do Google Drive" })
+      console.error("Error loading Google files:", error)
+      showMessage("error", "Erro ao carregar arquivos do Google Drive")
     } finally {
-      setSyncing(false)
+      setLoading(false)
     }
   }
 
-  const handleExport = async () => {
+  const handleExportLocal = async () => {
     try {
-      const data = await apiClient.exportData()
+      const data = await cleanApiClient.exportData()
       const blob = new Blob([data], { type: "application/json" })
       const url = URL.createObjectURL(blob)
-
       const a = document.createElement("a")
       a.href = url
       a.download = `financial-backup-${new Date().toISOString().split("T")[0]}.json`
@@ -147,51 +104,112 @@ export function DataManager() {
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-
-      setMessage({ type: "success", text: "Backup exportado com sucesso!" })
+      showMessage("success", "Dados exportados com sucesso!")
     } catch (error) {
-      setMessage({ type: "error", text: "Erro ao exportar dados" })
+      console.error("Export error:", error)
+      showMessage("error", "Erro ao exportar dados")
     }
   }
 
-  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportLocal = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    setImporting(true)
+    setLoading(true)
     try {
       const text = await file.text()
-      const success = await apiClient.importData(text)
-
+      const success = await cleanApiClient.importData(text)
       if (success) {
-        setMessage({ type: "success", text: "Dados importados com sucesso! Recarregue a página." })
-        setTimeout(() => window.location.reload(), 2000)
+        await refreshData()
+        showMessage("success", "Dados importados com sucesso!")
       } else {
-        setMessage({ type: "error", text: "Erro ao importar dados. Verifique o arquivo." })
+        showMessage("error", "Erro ao importar dados - formato inválido")
       }
     } catch (error) {
-      setMessage({ type: "error", text: "Arquivo inválido" })
+      console.error("Import error:", error)
+      showMessage("error", "Erro ao importar dados")
     } finally {
-      setImporting(false)
+      setLoading(false)
+      // Reset file input
       event.target.value = ""
     }
   }
 
-  const handleClearData = async () => {
-    if (!window.confirm("⚠️ ATENÇÃO: Isso irá apagar TODOS os seus dados permanentemente. Tem certeza?")) {
-      return
-    }
+  const handleBackupToGoogle = async () => {
+    if (!isGoogleConnected) return
 
-    if (!window.confirm("🚨 ÚLTIMA CHANCE: Todos os dados serão perdidos. Continuar?")) {
-      return
-    }
-
+    setLoading(true)
     try {
-      await apiClient.clearAllData()
-      setMessage({ type: "success", text: "Todos os dados foram removidos. Recarregando..." })
-      setTimeout(() => window.location.reload(), 1500)
+      const data = await cleanApiClient.exportData()
+      const fileName = `financial-backup-${new Date().toISOString().split("T")[0]}.json`
+      const fileId = await googleDriveManager.uploadFile(fileName, data)
+      
+      if (fileId) {
+        showMessage("success", "Backup salvo no Google Drive!")
+        await loadGoogleFiles()
+      } else {
+        showMessage("error", "Erro ao salvar backup no Google Drive")
+      }
     } catch (error) {
-      setMessage({ type: "error", text: "Erro ao limpar dados" })
+      console.error("Backup error:", error)
+      showMessage("error", "Erro ao fazer backup")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRestoreFromGoogle = async (fileId: string, fileName: string) => {
+    setLoading(true)
+    try {
+      const data = await googleDriveManager.downloadFile(fileId)
+      if (data) {
+        const success = await cleanApiClient.importData(data)
+        if (success) {
+          await refreshData()
+          showMessage("success", `Dados restaurados de ${fileName}!`)
+        } else {
+          showMessage("error", "Erro ao restaurar dados - formato inválido")
+        }
+      } else {
+        showMessage("error", "Erro ao baixar arquivo do Google Drive")
+      }
+    } catch (error) {
+      console.error("Restore error:", error)
+      showMessage("error", "Erro ao restaurar dados")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleDeleteFromGoogle = async (fileId: string, fileName: string) => {
+    setLoading(true)
+    try {
+      const success = await googleDriveManager.deleteFile(fileId)
+      if (success) {
+        showMessage("success", `${fileName} excluído do Google Drive!`)
+        await loadGoogleFiles()
+      } else {
+        showMessage("error", "Erro ao excluir arquivo")
+      }
+    } catch (error) {
+      console.error("Delete error:", error)
+      showMessage("error", "Erro ao excluir arquivo")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleClearAllData = async () => {
+    setLoading(true)
+    try {
+      await cleanApiClient.clearAllData()
+      await refreshData()
+      showMessage("success", "Todos os dados foram limpos!")
+    } catch (error) {
+      console.error("Clear data error:", error)
+      showMessage("error", "Erro ao limpar dados")
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -200,266 +218,250 @@ export function DataManager() {
     const k = 1024
     const sizes = ["Bytes", "KB", "MB", "GB"]
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
   }
 
-  const hasLocalData = localStorageManager.hasData()
-  const localData = localStorageManager.loadData()
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("pt-BR", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-green-800 mb-2">Gerenciar Dados</h2>
-        <p className="text-muted-foreground">Faça backup, restaure ou sincronize seus dados financeiros</p>
+        <h2 className="text-2xl font-bold">Gerenciamento de Dados</h2>
+        <p className="text-muted-foreground">Faça backup, restaure e gerencie seus dados financeiros</p>
       </div>
 
       {message && (
-        <Alert
-          className={
-            message.type === "error"
-              ? "border-red-200 bg-red-50"
-              : message.type === "success"
-                ? "border-green-200 bg-green-50"
-                : "border-blue-200 bg-blue-50"
-          }
-        >
-          {message.type === "error" && <AlertTriangle className="h-4 w-4 text-red-600" />}
-          {message.type === "success" && <CheckCircle className="h-4 w-4 text-green-600" />}
-          {message.type === "info" && <Info className="h-4 w-4 text-blue-600" />}
-          <AlertDescription
-            className={
-              message.type === "error"
-                ? "text-red-800"
-                : message.type === "success"
-                  ? "text-green-800"
-                  : "text-blue-800"
-            }
-          >
-            {message.text}
-          </AlertDescription>
-        </Alert>
+        <Card className={`border-l-4 ${message.type === "success" ? "border-l-green-500 bg-green-50" : "border-l-red-500 bg-red-50"}`}>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-2">
+              {message.type === "success" ? (
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              ) : (
+                <XCircle className="h-4 w-4 text-red-600" />
+              )}
+              <span className={message.type === "success" ? "text-green-800" : "text-red-800"}>
+                {message.text}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Google Drive Status */}
-      <Card className={googleUser ? "border-green-200 bg-green-50" : "border-gray-200"}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {googleUser ? <Cloud className="h-5 w-5 text-green-600" /> : <CloudOff className="h-5 w-5 text-gray-600" />}
-            Google Drive
-          </CardTitle>
-          <CardDescription>
-            {googleUser
-              ? `Conectado como ${googleUser.name} (${googleUser.email})`
-              : "Conecte-se para sincronizar seus dados na nuvem"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {googleUser ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <img
-                  src={googleUser.picture || "/placeholder.svg"}
-                  alt={googleUser.name}
-                  className="w-8 h-8 rounded-full"
-                />
-                <div>
-                  <div className="font-medium">{googleUser.name}</div>
-                  <div className="text-sm text-muted-foreground">{googleUser.email}</div>
+      <Tabs defaultValue="local" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="local">Gerenciamento Local</TabsTrigger>
+          <TabsTrigger value="cloud">Google Drive</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="local" className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Download className="h-5 w-5" />
+                  Exportar Dados
+                </CardTitle>
+                <CardDescription>
+                  Baixe todos os seus dados financeiros em formato JSON
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button onClick={handleExportLocal} className="w-full" disabled={loading}>
+                  {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+                  Exportar Dados
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5" />
+                  Importar Dados
+                </CardTitle>
+                <CardDescription>
+                  Restaure seus dados a partir de um arquivo JSON
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <Label htmlFor="import-file">Selecionar arquivo JSON</Label>
+                  <Input
+                    id="import-file"
+                    type="file"
+                    accept=".json"
+                    onChange={handleImportLocal}
+                    disabled={loading}
+                  />
                 </div>
-                <Badge variant="secondary" className="ml-auto">
-                  Conectado
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-600">
+                <Trash2 className="h-5 w-5" />
+                Zona de Perigo
+              </CardTitle>
+              <CardDescription>
+                Ações irreversíveis que afetam todos os seus dados
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={loading}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Limpar Todos os Dados
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta ação irá excluir permanentemente todos os seus dados financeiros.
+                      Esta ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleClearAllData} className="bg-red-600 hover:bg-red-700">
+                      Sim, limpar tudo
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="cloud" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                {isGoogleConnected ? <Cloud className="h-5 w-5 text-green-600" /> : <CloudOff className="h-5 w-5 text-gray-400" />}
+                Status do Google Drive
+              </CardTitle>
+              <CardDescription>
+                {isGoogleConnected ? "Conectado e pronto para backup" : "Conecte-se para fazer backup na nuvem"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Badge variant={isGoogleConnected ? "default" : "secondary"} className={isGoogleConnected ? "bg-green-100 text-green-800" : ""}>
+                  {isGoogleConnected ? "Conectado" : "Desconectado"}
                 </Badge>
               </div>
-
+              
               <div className="flex gap-2">
-                <Button onClick={handleSyncToGoogle} disabled={syncing || !hasLocalData} className="flex-1">
-                  {syncing ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                  Enviar para Nuvem
-                </Button>
-
-                <Button
-                  onClick={handleSyncFromGoogle}
-                  disabled={syncing}
-                  variant="outline"
-                  className="flex-1 bg-transparent"
-                >
-                  {syncing ? (
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4 mr-2" />
-                  )}
-                  Baixar da Nuvem
-                </Button>
-
-                <Button onClick={handleGoogleSignOut} variant="outline" size="icon">
-                  <LogOut className="h-4 w-4" />
-                </Button>
+                {!isGoogleConnected ? (
+                  <Button onClick={handleGoogleSignIn} disabled={loading}>
+                    {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Cloud className="mr-2 h-4 w-4" />}
+                    Conectar ao Google Drive
+                  </Button>
+                ) : (
+                  <>
+                    <Button onClick={handleBackupToGoogle} disabled={loading}>
+                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                      Fazer Backup
+                    </Button>
+                    <Button variant="outline" onClick={handleGoogleSignOut} disabled={loading}>
+                      <CloudOff className="mr-2 h-4 w-4" />
+                      Desconectar
+                    </Button>
+                    <Button variant="outline" onClick={loadGoogleFiles} disabled={loading}>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Atualizar
+                    </Button>
+                  </>
+                )}
               </div>
+            </CardContent>
+          </Card>
 
-              {/* Lista de Backups */}
-              {backups.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="font-medium text-sm">Backups na Nuvem:</h4>
-                  {backups.slice(0, 3).map((backup) => (
-                    <div
-                      key={backup.id}
-                      className="flex justify-between items-center text-sm p-2 bg-white rounded border"
-                    >
-                      <span>{backup.name}</span>
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <span>{formatFileSize(Number.parseInt(backup.size || "0"))}</span>
-                        <span>{new Date(backup.modifiedTime).toLocaleDateString("pt-BR")}</span>
+          {isGoogleConnected && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Backups na Nuvem</CardTitle>
+                <CardDescription>
+                  Seus backups salvos no Google Drive
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : googleFiles.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <FileText className="mx-auto h-12 w-12 mb-4 opacity-50" />
+                    <p>Nenhum backup encontrado</p>
+                    <p className="text-sm">Faça seu primeiro backup clicando no botão acima</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {googleFiles.map((file) => (
+                      <div key={file.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-medium">{file.name}</p>
+                          <div className="flex gap-4 text-sm text-muted-foreground">
+                            <span>{formatDate(file.modifiedTime)}</span>
+                            <span>{formatFileSize(parseInt(file.size || "0"))}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleRestoreFromGoogle(file.id, file.name)}
+                            disabled={loading}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" disabled={loading}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir backup?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Tem certeza que deseja excluir o backup "{file.name}"?
+                                  Esta ação não pode ser desfeita.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteFromGoogle(file.id, file.name)}
+                                  className="bg-red-600 hover:bg-red-700"
+                                >
+                                  Excluir
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                  {backups.length > 3 && (
-                    <div className="text-xs text-muted-foreground">+{backups.length - 3} backups mais antigos</div>
-                  )}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center space-y-4">
-              <div className="text-muted-foreground">
-                Conecte-se ao Google Drive para sincronizar seus dados automaticamente
-              </div>
-              <Button onClick={handleGoogleSignIn} disabled={!isGoogleReady} className="bg-blue-600 hover:bg-blue-700">
-                <User className="h-4 w-4 mr-2" />
-                {isGoogleReady ? "Conectar Google Drive" : "Carregando..."}
-              </Button>
-            </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Status dos Dados */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-blue-600" />
-            Status dos Dados Locais
-          </CardTitle>
-          <CardDescription>Informações sobre seus dados salvos no navegador</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{localData.accounts?.length || 0}</div>
-              <div className="text-sm text-muted-foreground">Contas</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{localData.transactions?.length || 0}</div>
-              <div className="text-sm text-muted-foreground">Transações</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{localData.credit_cards?.length || 0}</div>
-              <div className="text-sm text-muted-foreground">Cartões</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">{localData.categories?.length || 0}</div>
-              <div className="text-sm text-muted-foreground">Categorias</div>
-            </div>
-          </div>
-
-          {hasLocalData && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              Última atualização: {new Date(localData.lastUpdated).toLocaleString("pt-BR")}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Ações de Backup Local */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Download className="h-5 w-5 text-green-600" />
-              Exportar Dados
-            </CardTitle>
-            <CardDescription>Baixe um arquivo com todos os seus dados financeiros</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button onClick={handleExport} className="w-full bg-green-600 hover:bg-green-700" disabled={!hasLocalData}>
-              <Download className="h-4 w-4 mr-2" />
-              Baixar Backup Local
-            </Button>
-            {!hasLocalData && <p className="text-xs text-muted-foreground mt-2">Nenhum dado para exportar</p>}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5 text-blue-600" />
-              Importar Dados
-            </CardTitle>
-            <CardDescription>Restaure seus dados de um arquivo de backup</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <Label htmlFor="import-file">Selecionar arquivo JSON</Label>
-              <Input id="import-file" type="file" accept=".json" onChange={handleImport} disabled={importing} />
-              {importing && <p className="text-xs text-blue-600">Importando dados...</p>}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Zona de Perigo */}
-      <Card className="border-red-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-red-700">
-            <AlertTriangle className="h-5 w-5" />
-            Zona de Perigo
-          </CardTitle>
-          <CardDescription>Ações irreversíveis que podem causar perda de dados</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <Alert className="border-red-200 bg-red-50">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800">
-                <strong>Atenção:</strong> Esta ação irá apagar permanentemente todos os seus dados salvos localmente.
-                Faça um backup antes de continuar.
-              </AlertDescription>
-            </Alert>
-
-            <Button variant="destructive" onClick={handleClearData} disabled={!hasLocalData} className="w-full">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Apagar Todos os Dados Locais
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Informações Técnicas */}
-      <Card className="bg-blue-50 border-blue-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-blue-700">
-            <Info className="h-5 w-5" />
-            Como Funciona
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-blue-800">
-          <p>
-            • <strong>Local:</strong> Dados salvos no navegador (localStorage)
-          </p>
-          <p>
-            • <strong>Google Drive:</strong> Sincronização automática na nuvem
-          </p>
-          <p>
-            • <strong>Privacidade:</strong> Você controla onde seus dados ficam
-          </p>
-          <p>
-            • <strong>Backup:</strong> Múltiplas opções de backup e restore
-          </p>
-          <p>
-            • <strong>Offline:</strong> Funciona sem internet, sincroniza quando conecta
-          </p>
-        </CardContent>
-      </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

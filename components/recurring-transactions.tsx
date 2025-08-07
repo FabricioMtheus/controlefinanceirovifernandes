@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Trash2, Edit, Plus, Repeat, Play, Pause, Loader2 } from "lucide-react"
-
+import { apiClient } from "@/lib/api"
 
 interface RecurringTransaction {
   id: string
@@ -42,7 +42,6 @@ interface RecurringTransaction {
 }
 
 export function RecurringTransactions() {
-  const supabase = createSupabaseBrowserClient()
   const [transactions, setTransactions] = useState<RecurringTransaction[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<RecurringTransaction | null>(null)
@@ -72,18 +71,15 @@ export function RecurringTransactions() {
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from("recurring_transactions")
-      .select("*")
-      .order("created_at", { ascending: false })
-
-    if (error) {
+    try {
+      const data = await apiClient.get<RecurringTransaction[]>("recurring_transactions")
+      setTransactions(data)
+    } catch (error) {
       console.error("Error fetching recurring transactions:", error)
-    } else {
-      setTransactions(data as RecurringTransaction[])
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     fetchTransactions()
@@ -142,36 +138,28 @@ export function RecurringTransactions() {
       start_date: formData.start_date,
       end_date: formData.end_date || null,
       is_active: formData.is_active,
-      next_date: formData.start_date, // Simplified - would calculate based on frequency
+      next_date: formData.start_date,
       notes: formData.notes || null,
     }
 
-    if (editingTransaction) {
-      const { data, error } = await supabase
-        .from("recurring_transactions")
-        .update(transactionData)
-        .eq("id", editingTransaction.id)
-        .select()
-
-      if (error) {
-        console.error("Error updating recurring transaction:", error)
-      } else {
-        setTransactions(
-          transactions.map((t) => (t.id === editingTransaction.id ? (data[0] as RecurringTransaction) : t)),
+    try {
+      if (editingTransaction) {
+        const updatedTransaction = await apiClient.put<RecurringTransaction>(
+          "recurring_transactions",
+          editingTransaction.id,
+          transactionData,
         )
-      }
-    } else {
-      const { data, error } = await supabase.from("recurring_transactions").insert(transactionData).select()
-
-      if (error) {
-        console.error("Error creating recurring transaction:", error)
+        setTransactions(transactions.map((t) => (t.id === editingTransaction.id ? updatedTransaction : t)))
       } else {
-        setTransactions([data[0] as RecurringTransaction, ...transactions])
+        const newTransaction = await apiClient.post<RecurringTransaction>("recurring_transactions", transactionData)
+        setTransactions([newTransaction, ...transactions])
       }
+      resetForm()
+    } catch (error) {
+      console.error("Error saving recurring transaction:", error)
+    } finally {
+      setSubmitting(false)
     }
-
-    setSubmitting(false)
-    resetForm()
   }
 
   const resetForm = () => {
@@ -216,12 +204,12 @@ export function RecurringTransactions() {
     if (!window.confirm("Tem certeza que deseja excluir esta transação recorrente?")) {
       return
     }
-    const { error } = await supabase.from("recurring_transactions").delete().eq("id", id)
 
-    if (error) {
-      console.error("Error deleting recurring transaction:", error)
-    } else {
+    try {
+      await apiClient.delete("recurring_transactions", id)
       setTransactions(transactions.filter((t) => t.id !== id))
+    } catch (error) {
+      console.error("Error deleting recurring transaction:", error)
     }
   }
 
@@ -229,16 +217,13 @@ export function RecurringTransactions() {
     const transaction = transactions.find((t) => t.id === id)
     if (!transaction) return
 
-    const { data, error } = await supabase
-      .from("recurring_transactions")
-      .update({ is_active: !transaction.is_active })
-      .eq("id", id)
-      .select()
-
-    if (error) {
+    try {
+      const updatedTransaction = await apiClient.put<RecurringTransaction>("recurring_transactions", id, {
+        is_active: !transaction.is_active,
+      })
+      setTransactions(transactions.map((t) => (t.id === id ? updatedTransaction : t)))
+    } catch (error) {
       console.error("Error toggling transaction status:", error)
-    } else {
-      setTransactions(transactions.map((t) => (t.id === id ? (data[0] as RecurringTransaction) : t)))
     }
   }
 

@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, Edit, Plus, Tag, TrendingUp, TrendingDown, Loader2 } from "lucide-react"
-
+import { apiClient } from "@/lib/api"
 
 interface Category {
   id: string
@@ -32,7 +32,6 @@ interface Category {
 }
 
 export function CategoriesManager() {
-  const supabase = createSupabaseBrowserClient()
   const [categories, setCategories] = useState<Category[]>([])
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Category | null>(null)
@@ -47,15 +46,15 @@ export function CategoriesManager() {
 
   const fetchCategories = useCallback(async () => {
     setLoading(true)
-    const { data, error } = await supabase.from("categories").select("*").order("created_at", { ascending: false })
-
-    if (error) {
+    try {
+      const data = await apiClient.get<Category>("categories")
+      setCategories(data)
+    } catch (error) {
       console.error("Error fetching categories:", error)
-    } else {
-      setCategories(data as Category[])
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
-  }, [supabase])
+  }, [])
 
   useEffect(() => {
     fetchCategories()
@@ -89,33 +88,23 @@ export function CategoriesManager() {
       type: formData.type,
       color: formData.color,
       budget: formData.budget ? Number.parseFloat(formData.budget) : null,
-      spent: editingCategory?.spent || 0, // Keep existing spent or default to 0
+      spent: editingCategory?.spent || 0,
     }
 
-    if (editingCategory) {
-      const { data, error } = await supabase
-        .from("categories")
-        .update(categoryData)
-        .eq("id", editingCategory.id)
-        .select()
-
-      if (error) {
-        console.error("Error updating category:", error)
+    try {
+      if (editingCategory) {
+        const updatedCategory = await apiClient.put<Category>("categories", editingCategory.id, categoryData)
+        setCategories(categories.map((cat) => (cat.id === editingCategory.id ? updatedCategory : cat)))
       } else {
-        setCategories(categories.map((cat) => (cat.id === editingCategory.id ? (data[0] as Category) : cat)))
+        const newCategory = await apiClient.post<Category>("categories", categoryData)
+        setCategories([newCategory, ...categories])
       }
-    } else {
-      const { data, error } = await supabase.from("categories").insert(categoryData).select()
-
-      if (error) {
-        console.error("Error creating category:", error)
-      } else {
-        setCategories([data[0] as Category, ...categories])
-      }
+      resetForm()
+    } catch (error) {
+      console.error("Error saving category:", error)
+    } finally {
+      setSubmitting(false)
     }
-
-    setSubmitting(false)
-    resetForm()
   }
 
   const resetForm = () => {
@@ -144,12 +133,12 @@ export function CategoriesManager() {
     if (!window.confirm("Tem certeza que deseja excluir esta categoria?")) {
       return
     }
-    const { error } = await supabase.from("categories").delete().eq("id", id)
 
-    if (error) {
-      console.error("Error deleting category:", error)
-    } else {
+    try {
+      await apiClient.delete("categories", id)
       setCategories(categories.filter((cat) => cat.id !== id))
+    } catch (error) {
+      console.error("Error deleting category:", error)
     }
   }
 

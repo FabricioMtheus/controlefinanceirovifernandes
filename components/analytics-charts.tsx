@@ -1,381 +1,434 @@
 "use client"
 
+import { useMemo } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { TrendingUp, TrendingDown, Target, PieChart, BarChart3, Activity } from "lucide-react"
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+  Legend,
+} from "recharts"
+import { TrendingUp, DollarSign, PieChartIcon, BarChart3, Activity } from "lucide-react"
+import { useFinance } from "@/lib/finance-context"
 
 export function AnalyticsCharts() {
-  // Mock data for analytics
-  const monthlyData = [
-    { month: "Jan", income: 8500, expenses: 6200, savings: 2300 },
-    { month: "Fev", income: 8500, expenses: 5800, savings: 2700 },
-    { month: "Mar", income: 9200, expenses: 6500, savings: 2700 },
-    { month: "Abr", income: 8500, expenses: 6100, savings: 2400 },
-    { month: "Mai", income: 8500, expenses: 5900, savings: 2600 },
-    { month: "Jun", income: 8500, expenses: 6300, savings: 2200 },
-  ]
+  const { transactions, categories, accounts, loading } = useFinance()
 
-  const expenseCategories = [
-    { name: "Alimentação", amount: 1200, percentage: 25, color: "bg-red-500" },
-    { name: "Transporte", amount: 800, percentage: 17, color: "bg-blue-500" },
-    { name: "Moradia", amount: 1800, percentage: 38, color: "bg-green-500" },
-    { name: "Entretenimento", amount: 400, percentage: 8, color: "bg-purple-500" },
-    { name: "Outros", amount: 600, percentage: 12, color: "bg-orange-500" },
-  ]
+  // Calculate monthly trends
+  const monthlyTrends = useMemo(() => {
+    if (!transactions.length) return []
 
-  const incomeCategories = [
-    { name: "Salário", amount: 8500, percentage: 85, color: "bg-green-600" },
-    { name: "Freelance", amount: 1200, percentage: 12, color: "bg-blue-600" },
-    { name: "Investimentos", amount: 300, percentage: 3, color: "bg-purple-600" },
-  ]
+    const monthlyData: { [key: string]: { income: number; expenses: number } } = {}
 
-  const financialGoals = [
-    { name: "Reserva de Emergência", target: 50000, current: 32000, progress: 64 },
-    { name: "Viagem Europa", target: 15000, current: 8500, progress: 57 },
-    { name: "Carro Novo", target: 80000, current: 25000, progress: 31 },
-    { name: "Curso MBA", target: 25000, current: 18000, progress: 72 },
-  ]
+    transactions.forEach((transaction) => {
+      const date = new Date(transaction.date)
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
 
-  const accountPerformance = [
-    { name: "Conta Corrente", balance: 5420, transactions: 45, trend: "up" },
-    { name: "Poupança", balance: 32000, transactions: 8, trend: "up" },
-    { name: "Investimentos", balance: 25000, transactions: 12, trend: "up" },
-    { name: "Cartão de Crédito", balance: -2340, transactions: 28, trend: "down" },
-  ]
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { income: 0, expenses: 0 }
+      }
 
-  const currentMonth = monthlyData[monthlyData.length - 1]
-  const previousMonth = monthlyData[monthlyData.length - 2]
-  const incomeChange = ((currentMonth.income - previousMonth.income) / previousMonth.income) * 100
-  const expenseChange = ((currentMonth.expenses - previousMonth.expenses) / previousMonth.expenses) * 100
-  const savingsChange = ((currentMonth.savings - previousMonth.savings) / previousMonth.savings) * 100
+      const category = categories.find((c) => c.id === transaction.category_id)
+      if (category?.type === "income") {
+        monthlyData[monthKey].income += transaction.amount
+      } else {
+        monthlyData[monthKey].expenses += transaction.amount
+      }
+    })
 
-  const totalExpenses = expenseCategories.reduce((sum, cat) => sum + cat.amount, 0)
-  const totalIncome = incomeCategories.reduce((sum, cat) => sum + cat.amount, 0)
+    return Object.entries(monthlyData)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .slice(-6) // Last 6 months
+      .map(([month, data]) => ({
+        month: new Date(month + "-01").toLocaleDateString("pt-BR", { month: "short", year: "2-digit" }),
+        receitas: data.income,
+        despesas: data.expenses,
+      }))
+  }, [transactions, categories])
+
+  // Calculate expense distribution
+  const expenseDistribution = useMemo(() => {
+    if (!transactions.length || !categories.length) return []
+
+    const categoryTotals: { [key: string]: number } = {}
+
+    transactions.forEach((transaction) => {
+      const category = categories.find((c) => c.id === transaction.category_id)
+      if (category?.type === "expense") {
+        categoryTotals[category.name] = (categoryTotals[category.name] || 0) + transaction.amount
+      }
+    })
+
+    return Object.entries(categoryTotals)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8) // Top 8 categories
+  }, [transactions, categories])
+
+  // Calculate income sources
+  const incomeSources = useMemo(() => {
+    if (!transactions.length || !categories.length) return []
+
+    const categoryTotals: { [key: string]: number } = {}
+
+    transactions.forEach((transaction) => {
+      const category = categories.find((c) => c.id === transaction.category_id)
+      if (category?.type === "income") {
+        categoryTotals[category.name] = (categoryTotals[category.name] || 0) + transaction.amount
+      }
+    })
+
+    return Object.entries(categoryTotals)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+  }, [transactions, categories])
+
+  // Calculate account performance
+  const accountPerformance = useMemo(() => {
+    if (!accounts.length) return []
+
+    return accounts.map((account) => {
+      const accountTransactions = transactions.filter((t) => t.account_id === account.id)
+      const totalIncome = accountTransactions
+        .filter((t) => {
+          const category = categories.find((c) => c.id === t.category_id)
+          return category?.type === "income"
+        })
+        .reduce((sum, t) => sum + t.amount, 0)
+
+      const totalExpenses = accountTransactions
+        .filter((t) => {
+          const category = categories.find((c) => c.id === t.category_id)
+          return category?.type === "expense"
+        })
+        .reduce((sum, t) => sum + t.amount, 0)
+
+      return {
+        name: account.name,
+        saldo: account.balance,
+        receitas: totalIncome,
+        despesas: totalExpenses,
+      }
+    })
+  }, [accounts, transactions, categories])
+
+  // Calculate financial health scores
+  const financialHealth = useMemo(() => {
+    const totalIncome = transactions
+      .filter((t) => {
+        const category = categories.find((c) => c.id === t.category_id)
+        return category?.type === "income"
+      })
+      .reduce((sum, t) => sum + t.amount, 0)
+
+    const totalExpenses = transactions
+      .filter((t) => {
+        const category = categories.find((c) => c.id === t.category_id)
+        return category?.type === "expense"
+      })
+      .reduce((sum, t) => sum + t.amount, 0)
+
+    const totalBalance = accounts.reduce((sum, account) => sum + account.balance, 0)
+
+    const savingsRate = totalIncome > 0 ? ((totalIncome - totalExpenses) / totalIncome) * 100 : 0
+    const expenseRatio = totalIncome > 0 ? (totalExpenses / totalIncome) * 100 : 0
+    const liquidityScore = totalBalance > 0 ? Math.min(100, (totalBalance / (totalExpenses / 12)) * 10) : 0
+
+    return [
+      { metric: "Taxa de Poupança", score: Math.max(0, Math.min(100, savingsRate)) },
+      { metric: "Controle de Gastos", score: Math.max(0, 100 - expenseRatio) },
+      { metric: "Liquidez", score: liquidityScore },
+      { metric: "Diversificação", score: accounts.length > 1 ? 75 : 25 },
+    ]
+  }, [transactions, categories, accounts])
+
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D", "#FFC658", "#FF7C7C"]
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value)
+  }
+
+  if (loading) {
+    return (
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {[...Array(6)].map((_, i) => (
+          <Card key={i}>
+            <CardContent className="p-6">
+              <div className="text-center">Carregando dados...</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
+  const hasData = transactions.length > 0 && categories.length > 0 && accounts.length > 0
+
+  if (!hasData) {
+    return (
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="md:col-span-2 lg:col-span-3">
+          <CardContent className="p-6">
+            <div className="text-center text-muted-foreground">
+              <BarChart3 className="mx-auto h-12 w-12 mb-4 opacity-50" />
+              <p className="text-lg font-medium mb-2">Dados insuficientes para análise</p>
+              <p>Adicione contas, categorias e transações para visualizar os gráficos de análise.</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-financial-primary mb-2">Análises Financeiras</h2>
-        <p className="text-muted-foreground">Insights detalhados sobre seus padrões financeiros e desempenho</p>
+        <h2 className="text-2xl font-bold">Análises Financeiras</h2>
+        <p className="text-muted-foreground">Visualize seus dados financeiros e tendências</p>
       </div>
 
-      {/* Key Metrics */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-green-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-600" />
-              Receita Mensal
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* Monthly Trends */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Tendências Mensais
             </CardTitle>
+            <CardDescription>Receitas vs Despesas nos últimos 6 meses</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {currentMonth.income.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-            </div>
-            <div className={`flex items-center gap-1 text-xs ${incomeChange >= 0 ? "text-green-600" : "text-red-600"}`}>
-              <TrendingUp className={`h-3 w-3 ${incomeChange < 0 ? "rotate-180" : ""}`} />
-              {Math.abs(incomeChange).toFixed(1)}% vs mês anterior
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-red-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-red-600" />
-              Gastos Mensais
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {currentMonth.expenses.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-            </div>
-            <div
-              className={`flex items-center gap-1 text-xs ${expenseChange <= 0 ? "text-green-600" : "text-red-600"}`}
-            >
-              <TrendingDown className={`h-3 w-3 ${expenseChange < 0 ? "rotate-180" : ""}`} />
-              {Math.abs(expenseChange).toFixed(1)}% vs mês anterior
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-blue-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Target className="h-4 w-4 text-blue-600" />
-              Poupança Mensal
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {currentMonth.savings.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-            </div>
-            <div
-              className={`flex items-center gap-1 text-xs ${savingsChange >= 0 ? "text-green-600" : "text-red-600"}`}
-            >
-              <TrendingUp className={`h-3 w-3 ${savingsChange < 0 ? "rotate-180" : ""}`} />
-              {Math.abs(savingsChange).toFixed(1)}% vs mês anterior
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-financial-primary/20">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Activity className="h-4 w-4 text-financial-primary" />
-              Taxa de Poupança
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-financial-primary">
-              {((currentMonth.savings / currentMonth.income) * 100).toFixed(1)}%
-            </div>
-            <div className="text-xs text-muted-foreground">Meta: 20% (Atingida!)</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Monthly Trend */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-financial-primary" />
-            Tendência Mensal
-          </CardTitle>
-          <CardDescription>Evolução das receitas, gastos e poupança nos últimos 6 meses</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {monthlyData.map((month, index) => (
-              <div key={month.month} className="space-y-2">
-                <div className="flex justify-between text-sm font-medium">
-                  <span>{month.month}</span>
-                  <span>
-                    Líquido:{" "}
-                    {(month.income - month.expenses).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                  </span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-xs">
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-green-600">Receita</span>
-                      <span>{month.income.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-                    </div>
-                    <div className="w-full bg-green-100 rounded-full h-2">
-                      <div
-                        className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(month.income / 10000) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-red-600">Gastos</span>
-                      <span>{month.expenses.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-                    </div>
-                    <div className="w-full bg-red-100 rounded-full h-2">
-                      <div
-                        className="bg-red-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(month.expenses / 10000) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-blue-600">Poupança</span>
-                      <span>{month.savings.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-                    </div>
-                    <div className="w-full bg-blue-100 rounded-full h-2">
-                      <div
-                        className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(month.savings / 3000) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
+            {monthlyTrends.length > 0 ? (
+              <ChartContainer
+                config={{
+                  receitas: {
+                    label: "Receitas",
+                    color: "hsl(var(--chart-1))",
+                  },
+                  despesas: {
+                    label: "Despesas",
+                    color: "hsl(var(--chart-2))",
+                  },
+                }}
+                className="h-[300px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={monthlyTrends}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="month" />
+                    <YAxis tickFormatter={(value) => formatCurrency(value)} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="receitas"
+                      stroke="var(--color-receitas)"
+                      strokeWidth={2}
+                      dot={{ fill: "var(--color-receitas)" }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="despesas"
+                      stroke="var(--color-despesas)"
+                      strokeWidth={2}
+                      dot={{ fill: "var(--color-despesas)" }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                Dados insuficientes para gráfico mensal
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Category Analysis */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <PieChart className="h-5 w-5 text-red-600" />
-              Distribuição de Gastos
-            </CardTitle>
-            <CardDescription>
-              Total: {totalExpenses.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {expenseCategories.map((category, index) => (
-                <div key={category.name} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${category.color}`} />
-                      <span className="text-sm font-medium">{category.name}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-semibold">
-                        {category.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{category.percentage}%</div>
-                    </div>
-                  </div>
-                  <Progress value={category.percentage} className="h-2" />
-                </div>
-              ))}
-            </div>
+            )}
           </CardContent>
         </Card>
 
+        {/* Expense Distribution */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <PieChart className="h-5 w-5 text-green-600" />
+              <PieChartIcon className="h-5 w-5" />
+              Distribuição de Despesas
+            </CardTitle>
+            <CardDescription>Por categoria</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {expenseDistribution.length > 0 ? (
+              <ChartContainer config={{}} className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={expenseDistribution}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                      {expenseDistribution.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <ChartTooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="bg-background border rounded-lg p-2 shadow-md">
+                              <p className="font-medium">{payload[0].name}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {formatCurrency(payload[0].value as number)}
+                              </p>
+                            </div>
+                          )
+                        }
+                        return null
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                Nenhuma despesa encontrada
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Income Sources */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
               Fontes de Receita
             </CardTitle>
-            <CardDescription>
-              Total: {totalIncome.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-            </CardDescription>
+            <CardDescription>Por categoria</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {incomeSources.length > 0 ? (
+              <div className="space-y-3">
+                {incomeSources.map((source, index) => (
+                  <div key={source.name} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                      />
+                      <span className="text-sm font-medium">{source.name}</span>
+                    </div>
+                    <span className="text-sm text-green-600 font-medium">{formatCurrency(source.value)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="h-[200px] flex items-center justify-center text-muted-foreground">
+                Nenhuma receita encontrada
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Account Performance */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              Performance das Contas
+            </CardTitle>
+            <CardDescription>Saldo, receitas e despesas por conta</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {accountPerformance.length > 0 ? (
+              <ChartContainer
+                config={{
+                  saldo: {
+                    label: "Saldo",
+                    color: "hsl(var(--chart-1))",
+                  },
+                  receitas: {
+                    label: "Receitas",
+                    color: "hsl(var(--chart-2))",
+                  },
+                  despesas: {
+                    label: "Despesas",
+                    color: "hsl(var(--chart-3))",
+                  },
+                }}
+                className="h-[300px]"
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={accountPerformance}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis tickFormatter={(value) => formatCurrency(value)} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Legend />
+                    <Bar dataKey="saldo" fill="var(--color-saldo)" />
+                    <Bar dataKey="receitas" fill="var(--color-receitas)" />
+                    <Bar dataKey="despesas" fill="var(--color-despesas)" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            ) : (
+              <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+                Nenhuma conta encontrada
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Financial Health */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              Saúde Financeira
+            </CardTitle>
+            <CardDescription>Indicadores de performance</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {incomeCategories.map((category, index) => (
-                <div key={category.name} className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${category.color}`} />
-                      <span className="text-sm font-medium">{category.name}</span>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-semibold">
-                        {category.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{category.percentage}%</div>
-                    </div>
+              {financialHealth.map((item, index) => (
+                <div key={item.metric} className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-medium">{item.metric}</span>
+                    <span
+                      className={`font-medium ${
+                        item.score >= 70 ? "text-green-600" : item.score >= 40 ? "text-yellow-600" : "text-red-600"
+                      }`}
+                    >
+                      {item.score.toFixed(0)}%
+                    </span>
                   </div>
-                  <Progress value={category.percentage} className="h-2" />
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all duration-300 ${
+                        item.score >= 70 ? "bg-green-500" : item.score >= 40 ? "bg-yellow-500" : "bg-red-500"
+                      }`}
+                      style={{ width: `${Math.max(5, item.score)}%` }}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
       </div>
-
-      {/* Financial Goals */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5 text-financial-primary" />
-            Metas Financeiras
-          </CardTitle>
-          <CardDescription>Progresso das suas metas de longo prazo</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            {financialGoals.map((goal, index) => (
-              <div key={goal.name} className="space-y-3 p-4 border border-border/50 rounded-lg">
-                <div className="flex justify-between items-center">
-                  <h4 className="font-medium">{goal.name}</h4>
-                  <Badge variant={goal.progress >= 70 ? "default" : goal.progress >= 40 ? "secondary" : "outline"}>
-                    {goal.progress}%
-                  </Badge>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm text-muted-foreground">
-                    <span>Atual: {goal.current.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-                    <span>Meta: {goal.target.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
-                  </div>
-                  <Progress value={goal.progress} className="h-2" />
-                  <div className="text-xs text-muted-foreground">
-                    Faltam:{" "}
-                    {(goal.target - goal.current).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Account Performance */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-financial-primary" />
-            Performance das Contas
-          </CardTitle>
-          <CardDescription>Resumo do desempenho de cada conta</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {accountPerformance.map((account, index) => (
-              <div key={account.name} className="space-y-2 p-4 border border-border/50 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium text-sm">{account.name}</h4>
-                  <div
-                    className={`flex items-center gap-1 ${account.trend === "up" ? "text-green-600" : "text-red-600"}`}
-                  >
-                    <TrendingUp className={`h-3 w-3 ${account.trend === "down" ? "rotate-180" : ""}`} />
-                  </div>
-                </div>
-                <div className={`text-lg font-bold ${account.balance >= 0 ? "text-green-600" : "text-red-600"}`}>
-                  {account.balance.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                </div>
-                <div className="text-xs text-muted-foreground">{account.transactions} transações este mês</div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Financial Health Score */}
-      <Card className="bg-gradient-to-r from-financial-secondary/30 to-financial-accent/20 border-financial-primary/20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-financial-primary" />
-            Pontuação de Saúde Financeira
-          </CardTitle>
-          <CardDescription>Avaliação geral da sua situação financeira</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 md:grid-cols-4">
-            <div className="text-center space-y-2">
-              <div className="text-4xl font-bold text-financial-primary">87</div>
-              <div className="text-sm text-muted-foreground">Pontuação Geral</div>
-              <Badge className="bg-financial-primary text-white">Excelente</Badge>
-            </div>
-            <div className="text-center space-y-2">
-              <div className="text-2xl font-bold text-green-600">27%</div>
-              <div className="text-sm text-muted-foreground">Taxa de Poupança</div>
-              <Badge variant="secondary" className="bg-green-100 text-green-700">
-                Acima da Meta
-              </Badge>
-            </div>
-            <div className="text-center space-y-2">
-              <div className="text-2xl font-bold text-blue-600">6.2</div>
-              <div className="text-sm text-muted-foreground">Meses de Reserva</div>
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                Saudável
-              </Badge>
-            </div>
-            <div className="text-center space-y-2">
-              <div className="text-2xl font-bold text-orange-600">15%</div>
-              <div className="text-sm text-muted-foreground">Uso do Crédito</div>
-              <Badge variant="secondary" className="bg-orange-100 text-orange-700">
-                Controlado
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   )
 }
