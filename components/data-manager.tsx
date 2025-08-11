@@ -419,7 +419,7 @@ export function DataManager() {
 
               <div className="flex gap-2">
                 {!isGoogleConnected ? (
-                  <Button onClick={handleGoogleSignIn} disabled={loading || googleDriveManager.isDomainError()}>
+                  <Button onClick={handleGoogleSignIn} disabled={loading}>
                     {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Cloud className="mr-2 h-4 w-4" />}
                     Conectar ao Google Drive
                   </Button>
