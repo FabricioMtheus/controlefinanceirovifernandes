@@ -1,6 +1,7 @@
 declare global {
   interface Window {
     gapi: any
+    google: any
   }
 }
 
@@ -16,7 +17,8 @@ export class GoogleDriveManager {
   private isInitialized = false
   private isSignedIn = false
   private gapi: any = null
-  private auth2: any = null
+  private tokenClient: any = null
+  private accessToken: string | null = null
   private credentialsAvailable = false
   private domainError = false
   private errorMessage = ""
@@ -32,49 +34,9 @@ export class GoogleDriveManager {
   }
 
   private async loadGoogleAPI(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      if (typeof window === "undefined") {
-        reject(new Error("Window is not available"))
-        return
-      }
-
-      // Check if script is already loaded
-      if (window.gapi) {
-        this.gapi = window.gapi
-        this.initializeGAPI()
-          .then(resolve)
-          .catch((error) => {
-            console.warn("Google API initialization failed:", error)
-            resolve() // Resolve instead of reject to prevent unhandled promise
-          })
-        return
-      }
-
-      // Load the Google API script
-      const script = document.createElement("script")
-      script.src = "https://apis.google.com/js/api.js"
-      script.onload = () => {
-        this.gapi = window.gapi
-        this.initializeGAPI()
-          .then(resolve)
-          .catch((error) => {
-            console.warn("Google API initialization failed:", error)
-            resolve() // Resolve instead of reject to prevent unhandled promise
-          })
-      }
-      script.onerror = () => {
-        console.warn("Failed to load Google API script")
-        this.errorMessage = "Failed to load Google API script"
-        resolve() // Resolve instead of reject to prevent unhandled promise
-      }
-      document.head.appendChild(script)
-    })
-  }
-
-  private async initializeGAPI(): Promise<void> {
     return new Promise((resolve) => {
-      if (!this.gapi) {
-        console.warn("Google API not loaded")
+      if (typeof window === "undefined") {
+        console.warn("Window is not available")
         resolve()
         return
       }
@@ -92,6 +54,65 @@ export class GoogleDriveManager {
 
       this.credentialsAvailable = true
 
+      let scriptsLoaded = 0
+      const totalScripts = 2
+
+      const checkAllLoaded = () => {
+        scriptsLoaded++
+        if (scriptsLoaded === totalScripts) {
+          this.initializeGAPI()
+            .then(resolve)
+            .catch(() => resolve())
+        }
+      }
+
+      // Load Google API script
+      if (!window.gapi) {
+        const gapiScript = document.createElement("script")
+        gapiScript.src = "https://apis.google.com/js/api.js"
+        gapiScript.onload = () => {
+          this.gapi = window.gapi
+          checkAllLoaded()
+        }
+        gapiScript.onerror = () => {
+          console.warn("Failed to load Google API script")
+          this.errorMessage = "Failed to load Google API script"
+          resolve()
+        }
+        document.head.appendChild(gapiScript)
+      } else {
+        this.gapi = window.gapi
+        checkAllLoaded()
+      }
+
+      // Load Google Identity Services script
+      if (!window.google) {
+        const gisScript = document.createElement("script")
+        gisScript.src = "https://accounts.google.com/gsi/client"
+        gisScript.onload = checkAllLoaded
+        gisScript.onerror = () => {
+          console.warn("Failed to load Google Identity Services script")
+          this.errorMessage = "Failed to load Google Identity Services script"
+          resolve()
+        }
+        document.head.appendChild(gisScript)
+      } else {
+        checkAllLoaded()
+      }
+    })
+  }
+
+  private async initializeGAPI(): Promise<void> {
+    return new Promise((resolve) => {
+      if (!this.gapi || !window.google) {
+        console.warn("Google APIs not loaded")
+        resolve()
+        return
+      }
+
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY!
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!
+
       const currentOrigin = window.location.origin
       console.log("Initializing Google API for domain:", currentOrigin)
 
@@ -101,56 +122,42 @@ export class GoogleDriveManager {
         resolve()
       }, 15000)
 
-      this.gapi.load("client:auth2", {
+      this.gapi.load("client", {
         callback: async () => {
           clearTimeout(timeoutId)
           try {
             await this.gapi.client.init({
               apiKey: apiKey,
-              clientId: clientId,
               discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
-              scope: "https://www.googleapis.com/auth/drive.file",
             })
 
-            this.auth2 = this.gapi.auth2.getAuthInstance()
+            this.tokenClient = window.google.accounts.oauth2.initTokenClient({
+              client_id: clientId,
+              scope: "https://www.googleapis.com/auth/drive.file",
+              callback: (response: any) => {
+                if (response.error) {
+                  console.error("Token client error:", response.error)
+                  return
+                }
+                this.accessToken = response.access_token
+                this.isSignedIn = true
+                console.log("Google sign-in successful")
+              },
+            })
 
-            if (this.auth2) {
-              this.isInitialized = true
-              try {
-                this.isSignedIn = this.auth2.isSignedIn?.get() || false
-              } catch (error) {
-                this.isSignedIn = false
-              }
-              console.log("Google API initialized successfully")
-            } else {
-              console.warn("Failed to get auth instance")
-              this.errorMessage = "Failed to get Google auth instance"
-            }
+            this.isInitialized = true
+            console.log("Google API initialized successfully with new Identity Services")
             resolve()
           } catch (error: any) {
             console.warn("Failed to initialize Google API:", error)
-            if (
-              error?.error === "idpiframe_initialization_failed" ||
-              (error?.details && error.details.includes("Not a valid origin")) ||
-              (typeof error === "object" &&
-                error !== null &&
-                "error" in error &&
-                error.error === "idpiframe_initialization_failed")
-            ) {
-              this.domainError = true
-              this.errorMessage =
-                "Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console."
-            } else {
-              this.errorMessage = "Failed to initialize Google API"
-            }
+            this.errorMessage = "Failed to initialize Google API"
             resolve()
           }
         },
         onerror: (error: any) => {
           clearTimeout(timeoutId)
           console.warn("Failed to load Google API libraries:", error)
-          this.domainError = true
-          this.errorMessage = "Failed to load Google API libraries. Domain may not be authorized."
+          this.errorMessage = "Failed to load Google API libraries"
           resolve()
         },
         timeout: 10000,
@@ -174,40 +181,40 @@ export class GoogleDriveManager {
         throw new Error("Google Drive credentials not configured")
       }
 
-      if (!this.isInitialized || !this.auth2) {
+      if (!this.isInitialized || !this.tokenClient) {
         await this.loadGoogleAPI()
 
         if (!this.credentialsAvailable) {
           throw new Error("Google Drive credentials not configured")
         }
 
-        if (!this.auth2) {
+        if (!this.tokenClient) {
           throw new Error("Google Auth not initialized")
         }
       }
 
-      if (this.auth2.isSignedIn?.get?.()) {
-        this.isSignedIn = true
-        return true
-      }
+      return new Promise((resolve, reject) => {
+        try {
+          this.tokenClient.callback = (response: any) => {
+            if (response.error) {
+              console.error("Sign-in error:", response.error)
+              reject(new Error(`Sign-in failed: ${response.error}`))
+              return
+            }
+            this.accessToken = response.access_token
+            this.isSignedIn = true
+            this.gapi.client.setToken({ access_token: this.accessToken })
+            resolve(true)
+          }
 
-      if (!this.auth2.signIn) {
-        throw new Error("Google Auth signIn method not available")
-      }
-
-      const authResult = await this.auth2.signIn()
-      this.isSignedIn = authResult?.isSignedIn?.() || false
-
-      console.log("Google sign-in successful:", this.isSignedIn)
-      return this.isSignedIn
+          this.tokenClient.requestAccessToken({ prompt: "consent" })
+        } catch (error) {
+          reject(error)
+        }
+      })
     } catch (error) {
       if (error instanceof Error && error.message.includes("popup_closed_by_user")) {
         throw new Error("Sign-in was cancelled by user")
-      } else if (
-        error instanceof Error &&
-        (error.message.includes("idpiframe_initialization_failed") || error.message.includes("Not a valid origin"))
-      ) {
-        throw new Error("Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console.")
       }
       throw error
     }
@@ -215,13 +222,19 @@ export class GoogleDriveManager {
 
   async signOut(): Promise<void> {
     try {
-      if (!this.credentialsAvailable || !this.auth2?.signOut) {
+      if (!this.credentialsAvailable) {
         throw new Error("Google Auth not properly initialized")
       }
 
-      await this.auth2.signOut()
+      if (this.accessToken && window.google) {
+        window.google.accounts.oauth2.revoke(this.accessToken, () => {
+          console.log("Google sign-out successful")
+        })
+      }
+
+      this.accessToken = null
       this.isSignedIn = false
-      console.log("Google sign-out successful")
+      this.gapi.client.setToken(null)
     } catch (error) {
       console.error("Google sign-out failed:", error)
       throw error
@@ -229,13 +242,7 @@ export class GoogleDriveManager {
   }
 
   getSignInStatus(): boolean {
-    try {
-      if (!this.credentialsAvailable) return false
-      return this.auth2?.isSignedIn?.get?.() || false
-    } catch (error) {
-      console.error("Error getting sign-in status:", error)
-      return false
-    }
+    return this.credentialsAvailable && this.isSignedIn && !!this.accessToken
   }
 
   getErrorMessage(): string {
@@ -247,7 +254,7 @@ export class GoogleDriveManager {
   }
 
   isGoogleDriveAvailable(): boolean {
-    return this.credentialsAvailable && this.isInitialized && !this.domainError
+    return this.credentialsAvailable && this.isInitialized
   }
 
   async uploadFile(fileName: string, content: string): Promise<string> {
@@ -256,7 +263,7 @@ export class GoogleDriveManager {
         throw new Error("Google Drive credentials not configured")
       }
 
-      if (!this.isSignedIn || !this.auth2) {
+      if (!this.isSignedIn || !this.accessToken) {
         throw new Error("Not signed in to Google Drive")
       }
 
@@ -303,7 +310,7 @@ export class GoogleDriveManager {
         throw new Error("Google Drive credentials not configured")
       }
 
-      if (!this.isSignedIn || !this.auth2) {
+      if (!this.isSignedIn || !this.accessToken) {
         throw new Error("Not signed in to Google Drive")
       }
 
@@ -326,7 +333,7 @@ export class GoogleDriveManager {
         throw new Error("Google Drive credentials not configured")
       }
 
-      if (!this.isSignedIn || !this.auth2) {
+      if (!this.isSignedIn || !this.accessToken) {
         throw new Error("Not signed in to Google Drive")
       }
 
@@ -348,7 +355,7 @@ export class GoogleDriveManager {
         throw new Error("Google Drive credentials not configured")
       }
 
-      if (!this.isSignedIn || !this.auth2) {
+      if (!this.isSignedIn || !this.accessToken) {
         throw new Error("Not signed in to Google Drive")
       }
 
