@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,7 +20,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Download, Upload, Trash2, FileText, Cloud, CloudOff, RefreshCw, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import {
+  Download,
+  Upload,
+  Trash2,
+  FileText,
+  Cloud,
+  CloudOff,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  Loader2,
+} from "lucide-react"
 import { cleanApiClient } from "@/lib/api-clean"
 import { googleDriveManager } from "@/lib/google-drive"
 import { useFinance } from "@/lib/finance-context"
@@ -56,7 +69,15 @@ export function DataManager() {
       }
     } catch (error) {
       console.error("Google sign in error:", error)
-      showMessage("error", "Erro ao conectar com Google Drive")
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
+      if (errorMessage.includes("credentials not configured")) {
+        showMessage(
+          "error",
+          "Google Drive não configurado. Configure as credenciais GOOGLE_API_KEY e GOOGLE_CLIENT_ID nas variáveis de ambiente.",
+        )
+      } else {
+        showMessage("error", "Erro ao conectar com Google Drive: " + errorMessage)
+      }
     } finally {
       setLoading(false)
     }
@@ -83,7 +104,7 @@ export function DataManager() {
     setLoading(true)
     try {
       const files = await googleDriveManager.listFiles()
-      setGoogleFiles(files.filter(file => file.name.includes('financial-backup')))
+      setGoogleFiles(files.filter((file) => file.name.includes("financial-backup")))
     } catch (error) {
       console.error("Error loading Google files:", error)
       showMessage("error", "Erro ao carregar arquivos do Google Drive")
@@ -143,7 +164,7 @@ export function DataManager() {
       const data = await cleanApiClient.exportData()
       const fileName = `financial-backup-${new Date().toISOString().split("T")[0]}.json`
       const fileId = await googleDriveManager.uploadFile(fileName, data)
-      
+
       if (fileId) {
         showMessage("success", "Backup salvo no Google Drive!")
         await loadGoogleFiles()
@@ -218,7 +239,7 @@ export function DataManager() {
     const k = 1024
     const sizes = ["Bytes", "KB", "MB", "GB"]
     const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
+    return Number.parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i]
   }
 
   const formatDate = (dateString: string) => {
@@ -239,7 +260,9 @@ export function DataManager() {
       </div>
 
       {message && (
-        <Card className={`border-l-4 ${message.type === "success" ? "border-l-green-500 bg-green-50" : "border-l-red-500 bg-red-50"}`}>
+        <Card
+          className={`border-l-4 ${message.type === "success" ? "border-l-green-500 bg-green-50" : "border-l-red-500 bg-red-50"}`}
+        >
           <CardContent className="pt-4">
             <div className="flex items-center gap-2">
               {message.type === "success" ? (
@@ -247,9 +270,7 @@ export function DataManager() {
               ) : (
                 <XCircle className="h-4 w-4 text-red-600" />
               )}
-              <span className={message.type === "success" ? "text-green-800" : "text-red-800"}>
-                {message.text}
-              </span>
+              <span className={message.type === "success" ? "text-green-800" : "text-red-800"}>{message.text}</span>
             </div>
           </CardContent>
         </Card>
@@ -269,9 +290,7 @@ export function DataManager() {
                   <Download className="h-5 w-5" />
                   Exportar Dados
                 </CardTitle>
-                <CardDescription>
-                  Baixe todos os seus dados financeiros em formato JSON
-                </CardDescription>
+                <CardDescription>Baixe todos os seus dados financeiros em formato JSON</CardDescription>
               </CardHeader>
               <CardContent>
                 <Button onClick={handleExportLocal} className="w-full" disabled={loading}>
@@ -287,20 +306,12 @@ export function DataManager() {
                   <Upload className="h-5 w-5" />
                   Importar Dados
                 </CardTitle>
-                <CardDescription>
-                  Restaure seus dados a partir de um arquivo JSON
-                </CardDescription>
+                <CardDescription>Restaure seus dados a partir de um arquivo JSON</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   <Label htmlFor="import-file">Selecionar arquivo JSON</Label>
-                  <Input
-                    id="import-file"
-                    type="file"
-                    accept=".json"
-                    onChange={handleImportLocal}
-                    disabled={loading}
-                  />
+                  <Input id="import-file" type="file" accept=".json" onChange={handleImportLocal} disabled={loading} />
                 </div>
               </CardContent>
             </Card>
@@ -312,9 +323,7 @@ export function DataManager() {
                 <Trash2 className="h-5 w-5" />
                 Zona de Perigo
               </CardTitle>
-              <CardDescription>
-                Ações irreversíveis que afetam todos os seus dados
-              </CardDescription>
+              <CardDescription>Ações irreversíveis que afetam todos os seus dados</CardDescription>
             </CardHeader>
             <CardContent>
               <AlertDialog>
@@ -328,8 +337,8 @@ export function DataManager() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Esta ação irá excluir permanentemente todos os seus dados financeiros.
-                      Esta ação não pode ser desfeita.
+                      Esta ação irá excluir permanentemente todos os seus dados financeiros. Esta ação não pode ser
+                      desfeita.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -348,7 +357,11 @@ export function DataManager() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                {isGoogleConnected ? <Cloud className="h-5 w-5 text-green-600" /> : <CloudOff className="h-5 w-5 text-gray-400" />}
+                {isGoogleConnected ? (
+                  <Cloud className="h-5 w-5 text-green-600" />
+                ) : (
+                  <CloudOff className="h-5 w-5 text-gray-400" />
+                )}
                 Status do Google Drive
               </CardTitle>
               <CardDescription>
@@ -357,11 +370,23 @@ export function DataManager() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-2">
-                <Badge variant={isGoogleConnected ? "default" : "secondary"} className={isGoogleConnected ? "bg-green-100 text-green-800" : ""}>
+                <Badge
+                  variant={isGoogleConnected ? "default" : "secondary"}
+                  className={isGoogleConnected ? "bg-green-100 text-green-800" : ""}
+                >
                   {isGoogleConnected ? "Conectado" : "Desconectado"}
                 </Badge>
               </div>
-              
+
+              {!isGoogleConnected && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Para usar o Google Drive:</strong> Configure as variáveis de ambiente
+                    NEXT_PUBLIC_GOOGLE_API_KEY e NEXT_PUBLIC_GOOGLE_CLIENT_ID no seu projeto.
+                  </p>
+                </div>
+              )}
+
               <div className="flex gap-2">
                 {!isGoogleConnected ? (
                   <Button onClick={handleGoogleSignIn} disabled={loading}>
@@ -371,7 +396,11 @@ export function DataManager() {
                 ) : (
                   <>
                     <Button onClick={handleBackupToGoogle} disabled={loading}>
-                      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                      {loading ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Upload className="mr-2 h-4 w-4" />
+                      )}
                       Fazer Backup
                     </Button>
                     <Button variant="outline" onClick={handleGoogleSignOut} disabled={loading}>
@@ -392,9 +421,7 @@ export function DataManager() {
             <Card>
               <CardHeader>
                 <CardTitle>Backups na Nuvem</CardTitle>
-                <CardDescription>
-                  Seus backups salvos no Google Drive
-                </CardDescription>
+                <CardDescription>Seus backups salvos no Google Drive</CardDescription>
               </CardHeader>
               <CardContent>
                 {loading ? (
@@ -415,7 +442,7 @@ export function DataManager() {
                           <p className="font-medium">{file.name}</p>
                           <div className="flex gap-4 text-sm text-muted-foreground">
                             <span>{formatDate(file.modifiedTime)}</span>
-                            <span>{formatFileSize(parseInt(file.size || "0"))}</span>
+                            <span>{formatFileSize(Number.parseInt(file.size || "0"))}</span>
                           </div>
                         </div>
                         <div className="flex gap-2">
@@ -429,7 +456,12 @@ export function DataManager() {
                           </Button>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700" disabled={loading}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-red-600 hover:text-red-700 bg-transparent"
+                                disabled={loading}
+                              >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
                             </AlertDialogTrigger>
@@ -437,8 +469,8 @@ export function DataManager() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>Excluir backup?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Tem certeza que deseja excluir o backup "{file.name}"?
-                                  Esta ação não pode ser desfeita.
+                                  Tem certeza que deseja excluir o backup "{file.name}"? Esta ação não pode ser
+                                  desfeita.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>

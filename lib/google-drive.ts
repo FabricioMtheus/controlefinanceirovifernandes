@@ -17,6 +17,7 @@ export class GoogleDriveManager {
   private isSignedIn = false
   private gapi: any = null
   private auth2: any = null
+  private credentialsAvailable = false
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -51,40 +52,58 @@ export class GoogleDriveManager {
   }
 
   private async initializeGAPI(): Promise<void> {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (!this.gapi) {
-        reject(new Error("Google API not loaded"))
+        console.warn("Google API not loaded")
+        resolve()
         return
       }
+
+      const apiKey = process.env.NEXT_PUBLIC_GOOGLE_API_KEY
+      const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
+
+      if (!apiKey || !clientId) {
+        console.warn("Google API credentials not configured. Google Drive features will be disabled.")
+        this.credentialsAvailable = false
+        resolve()
+        return
+      }
+
+      this.credentialsAvailable = true
 
       this.gapi.load("client:auth2", {
         callback: async () => {
           try {
             await this.gapi.client.init({
-              apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
-              clientId: process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID,
+              apiKey: apiKey,
+              clientId: clientId,
               discoveryDocs: ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"],
               scope: "https://www.googleapis.com/auth/drive.file",
             })
 
             this.auth2 = this.gapi.auth2.getAuthInstance()
+
             if (this.auth2) {
               this.isInitialized = true
-              this.isSignedIn = this.auth2.isSignedIn.get()
+              try {
+                this.isSignedIn = this.auth2.isSignedIn?.get() || false
+              } catch (error) {
+                this.isSignedIn = false
+              }
               console.log("Google API initialized successfully")
+              resolve()
             } else {
-              throw new Error("Failed to get auth instance")
+              console.error("Failed to get auth instance")
+              resolve()
             }
-            
-            resolve()
           } catch (error) {
             console.error("Failed to initialize Google API:", error)
-            reject(error)
+            resolve()
           }
         },
         onerror: (error: any) => {
           console.error("Failed to load Google API libraries:", error)
-          reject(new Error("Failed to load Google API libraries"))
+          resolve()
         },
       })
     })
@@ -92,20 +111,29 @@ export class GoogleDriveManager {
 
   async signIn(): Promise<boolean> {
     try {
+      if (!this.credentialsAvailable) {
+        throw new Error("Google Drive credentials not configured")
+      }
+
       if (!this.isInitialized) {
         await this.loadGoogleAPI()
       }
 
       if (!this.auth2) {
-        throw new Error("Google Auth not initialized")
+        throw new Error("Google Auth not properly initialized")
       }
 
-      if (this.isSignedIn) {
+      if (this.auth2.isSignedIn?.get?.()) {
+        this.isSignedIn = true
         return true
       }
 
+      if (!this.auth2.signIn) {
+        throw new Error("Google Auth signIn method not available")
+      }
+
       const authResult = await this.auth2.signIn()
-      this.isSignedIn = authResult && authResult.isSignedIn()
+      this.isSignedIn = authResult?.isSignedIn?.() || false
 
       console.log("Google sign-in successful:", this.isSignedIn)
       return this.isSignedIn
@@ -117,8 +145,8 @@ export class GoogleDriveManager {
 
   async signOut(): Promise<void> {
     try {
-      if (!this.auth2) {
-        throw new Error("Google Auth not initialized")
+      if (!this.credentialsAvailable || !this.auth2?.signOut) {
+        throw new Error("Google Auth not properly initialized")
       }
 
       await this.auth2.signOut()
@@ -131,11 +159,25 @@ export class GoogleDriveManager {
   }
 
   getSignInStatus(): boolean {
-    return this.isSignedIn && this.auth2 && this.auth2.isSignedIn.get()
+    try {
+      if (!this.credentialsAvailable) return false
+      return this.auth2?.isSignedIn?.get?.() || false
+    } catch (error) {
+      console.error("Error getting sign-in status:", error)
+      return false
+    }
+  }
+
+  isGoogleDriveAvailable(): boolean {
+    return this.credentialsAvailable && this.isInitialized
   }
 
   async uploadFile(fileName: string, content: string): Promise<string> {
     try {
+      if (!this.credentialsAvailable) {
+        throw new Error("Google Drive credentials not configured")
+      }
+
       if (!this.isSignedIn || !this.auth2) {
         throw new Error("Not signed in to Google Drive")
       }
@@ -179,6 +221,10 @@ export class GoogleDriveManager {
 
   async listFiles(): Promise<GoogleDriveFile[]> {
     try {
+      if (!this.credentialsAvailable) {
+        throw new Error("Google Drive credentials not configured")
+      }
+
       if (!this.isSignedIn || !this.auth2) {
         throw new Error("Not signed in to Google Drive")
       }
@@ -198,6 +244,10 @@ export class GoogleDriveManager {
 
   async downloadFile(fileId: string): Promise<string> {
     try {
+      if (!this.credentialsAvailable) {
+        throw new Error("Google Drive credentials not configured")
+      }
+
       if (!this.isSignedIn || !this.auth2) {
         throw new Error("Not signed in to Google Drive")
       }
@@ -216,6 +266,10 @@ export class GoogleDriveManager {
 
   async deleteFile(fileId: string): Promise<void> {
     try {
+      if (!this.credentialsAvailable) {
+        throw new Error("Google Drive credentials not configured")
+      }
+
       if (!this.isSignedIn || !this.auth2) {
         throw new Error("Not signed in to Google Drive")
       }
