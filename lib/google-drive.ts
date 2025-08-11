@@ -74,6 +74,19 @@ export class GoogleDriveManager {
 
       this.credentialsAvailable = true
 
+      const currentOrigin = window.location.origin
+      const isLocalhost = currentOrigin.includes("localhost") || currentOrigin.includes("127.0.0.1")
+      const isVercelPreview = currentOrigin.includes(".vercel.app")
+
+      if (isVercelPreview && !isLocalhost) {
+        console.warn("Vercel preview domain detected. Google OAuth may not be configured for this domain.")
+        this.domainError = true
+        this.errorMessage =
+          "Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console."
+        resolve()
+        return
+      }
+
       this.gapi.load("client:auth2", {
         callback: async () => {
           try {
@@ -104,7 +117,11 @@ export class GoogleDriveManager {
             console.error("Failed to initialize Google API:", error)
             if (
               error?.error === "idpiframe_initialization_failed" ||
-              (error?.details && error.details.includes("Not a valid origin"))
+              (error?.details && error.details.includes("Not a valid origin")) ||
+              (typeof error === "object" &&
+                error !== null &&
+                "error" in error &&
+                error.error === "idpiframe_initialization_failed")
             ) {
               this.domainError = true
               this.errorMessage =
@@ -117,13 +134,14 @@ export class GoogleDriveManager {
         },
         onerror: (error: any) => {
           console.error("Failed to load Google API libraries:", error)
-          if (error?.error === "idpiframe_initialization_failed") {
-            this.domainError = true
-            this.errorMessage =
-              "Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console."
-          } else {
-            this.errorMessage = "Failed to load Google API libraries"
-          }
+          this.domainError = true
+          this.errorMessage = "Failed to load Google API libraries. Domain may not be authorized."
+          resolve()
+        },
+        timeout: 10000,
+        ontimeout: () => {
+          console.error("Google API loading timed out")
+          this.errorMessage = "Google API loading timed out"
           resolve()
         },
       })
@@ -140,17 +158,22 @@ export class GoogleDriveManager {
         throw new Error("Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console.")
       }
 
-      if (!this.isInitialized) {
+      if (!this.isInitialized || !this.auth2) {
         await this.loadGoogleAPI()
+
         if (this.domainError) {
           throw new Error(
             "Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console.",
           )
         }
-      }
 
-      if (!this.auth2) {
-        throw new Error("Google Auth not properly initialized")
+        if (!this.credentialsAvailable) {
+          throw new Error("Google Drive credentials not configured")
+        }
+
+        if (!this.auth2) {
+          throw new Error("Google Auth not initialized")
+        }
       }
 
       if (this.auth2.isSignedIn?.get?.()) {
