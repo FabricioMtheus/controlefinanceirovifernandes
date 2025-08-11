@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, TrendingDown, DollarSign, CreditCard, PiggyBank, AlertTriangle } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, CreditCard, PiggyBank, AlertTriangle } from "lucide-react"
 import { useFinance } from "@/lib/finance-context"
 import { formatCurrency } from "@/lib/currency-formatter"
 
@@ -13,26 +13,20 @@ export function DashboardOverview() {
   const totalAccountBalance = accounts.reduce((sum, account) => sum + account.balance, 0)
 
   // Separar transações efetivadas e pendentes
-  const effectiveTransactions = transactions.filter(t => t.efetivada)
-  const pendingTransactions = transactions.filter(t => !t.efetivada)
+  const effectiveTransactions = transactions.filter((t) => t.efetivada)
+  const pendingTransactions = transactions.filter((t) => !t.efetivada)
 
   // Calcular receitas e despesas efetivadas
-  const effectiveIncome = effectiveTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0)
+  const effectiveIncome = effectiveTransactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0)
 
   const effectiveExpenses = effectiveTransactions
-    .filter(t => t.type === 'expense')
+    .filter((t) => t.type === "expense")
     .reduce((sum, t) => sum + t.amount, 0)
 
   // Calcular receitas e despesas pendentes
-  const pendingIncome = pendingTransactions
-    .filter(t => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0)
+  const pendingIncome = pendingTransactions.filter((t) => t.type === "income").reduce((sum, t) => sum + t.amount, 0)
 
-  const pendingExpenses = pendingTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0)
+  const pendingExpenses = pendingTransactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0)
 
   // Saldo total real (considerando apenas transações efetivadas)
   const totalBalance = totalAccountBalance + effectiveIncome - effectiveExpenses
@@ -54,20 +48,22 @@ export function DashboardOverview() {
     .slice(0, 5)
 
   // Categorias com mais gastos
-  const expensesByCategory = categories.map(category => {
-    const categoryExpenses = effectiveTransactions
-      .filter(t => t.type === 'expense' && t.categoryId === category.id)
-      .reduce((sum, t) => sum + t.amount, 0)
-    
-    return {
-      ...category,
-      totalExpenses: categoryExpenses
-    }
-  }).sort((a, b) => b.totalExpenses - a.totalExpenses)
+  const expensesByCategory = categories
+    .map((category) => {
+      const categoryExpenses = effectiveTransactions
+        .filter((t) => t.type === "expense" && t.categoryId === category.id)
+        .reduce((sum, t) => sum + t.amount, 0)
+
+      return {
+        ...category,
+        totalExpenses: categoryExpenses,
+      }
+    })
+    .sort((a, b) => b.totalExpenses - a.totalExpenses)
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {/* Saldo Total */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -75,13 +71,9 @@ export function DashboardOverview() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(totalBalance)}
-            </div>
+            <div className="text-xl sm:text-2xl font-bold text-green-600">{formatCurrency(totalBalance)}</div>
             {projectedBalance !== totalBalance && (
-              <p className="text-xs text-muted-foreground">
-                Projetado: {formatCurrency(projectedBalance)}
-              </p>
+              <p className="text-xs text-muted-foreground">Projetado: {formatCurrency(projectedBalance)}</p>
             )}
           </CardContent>
         </Card>
@@ -93,9 +85,7 @@ export function DashboardOverview() {
             <TrendingUp className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {formatCurrency(effectiveIncome)}
-            </div>
+            <div className="text-xl sm:text-2xl font-bold text-green-600">{formatCurrency(effectiveIncome)}</div>
             {pendingIncome > 0 && (
               <div className="flex items-center gap-1">
                 <Badge variant="outline" className="text-xs">
@@ -113,9 +103,7 @@ export function DashboardOverview() {
             <TrendingDown className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {formatCurrency(effectiveExpenses)}
-            </div>
+            <div className="text-xl sm:text-2xl font-bold text-red-600">{formatCurrency(effectiveExpenses)}</div>
             {pendingExpenses > 0 && (
               <div className="flex items-center gap-1">
                 <Badge variant="outline" className="text-xs">
@@ -133,21 +121,21 @@ export function DashboardOverview() {
             <PiggyBank className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${savings >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className={`text-xl sm:text-2xl font-bold ${savings >= 0 ? "text-green-600" : "text-red-600"}`}>
               {formatCurrency(savings)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {savings >= 0 ? 'Você está economizando!' : 'Gastos excedem receitas'}
+              {savings >= 0 ? "Você está economizando!" : "Gastos excedem receitas"}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Resumo de Contas */}
         <Card>
           <CardHeader>
-            <CardTitle>Resumo de Contas</CardTitle>
+            <CardTitle className="text-base sm:text-lg">Resumo de Contas</CardTitle>
             <CardDescription>Saldo por conta</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -156,8 +144,10 @@ export function DashboardOverview() {
             ) : (
               accounts.map((account) => (
                 <div key={account.id} className="flex justify-between items-center">
-                  <span className="text-sm font-medium">{account.name}</span>
-                  <span className={`text-sm font-bold ${account.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  <span className="text-sm font-medium truncate pr-2">{account.name}</span>
+                  <span
+                    className={`text-sm font-bold flex-shrink-0 ${account.balance >= 0 ? "text-green-600" : "text-red-600"}`}
+                  >
                     {formatCurrency(account.balance)}
                   </span>
                 </div>
@@ -169,7 +159,7 @@ export function DashboardOverview() {
         {/* Cartões de Crédito */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <CreditCard className="h-4 w-4" />
               Cartões de Crédito
             </CardTitle>
@@ -197,14 +187,17 @@ export function DashboardOverview() {
                   return (
                     <div key={card.id} className="space-y-1">
                       <div className="flex justify-between text-xs">
-                        <span>{card.name}</span>
-                        <span>{usagePercentage.toFixed(1)}%</span>
+                        <span className="truncate pr-2">{card.name}</span>
+                        <span className="flex-shrink-0">{usagePercentage.toFixed(1)}%</span>
                       </div>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div
                           className={`h-2 rounded-full ${
-                            usagePercentage > 80 ? 'bg-red-500' : 
-                            usagePercentage > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                            usagePercentage > 80
+                              ? "bg-red-500"
+                              : usagePercentage > 60
+                                ? "bg-yellow-500"
+                                : "bg-green-500"
                           }`}
                           style={{ width: `${Math.min(usagePercentage, 100)}%` }}
                         />
@@ -220,7 +213,7 @@ export function DashboardOverview() {
         {/* Transações Recentes */}
         <Card>
           <CardHeader>
-            <CardTitle>Transações Recentes</CardTitle>
+            <CardTitle className="text-base sm:text-lg">Transações Recentes</CardTitle>
             <CardDescription>Últimas 5 transações</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -228,14 +221,14 @@ export function DashboardOverview() {
               <p className="text-sm text-muted-foreground">Nenhuma transação encontrada</p>
             ) : (
               recentTransactions.map((transaction) => {
-                const category = categories.find(c => c.id === transaction.categoryId)
+                const category = categories.find((c) => c.id === transaction.categoryId)
                 return (
-                  <div key={transaction.id} className="flex justify-between items-center">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">{transaction.description}</p>
-                      <div className="flex items-center gap-2">
+                  <div key={transaction.id} className="flex justify-between items-start gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{transaction.description}</p>
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
                         <p className="text-xs text-muted-foreground">
-                          {new Date(transaction.date).toLocaleDateString('pt-BR')}
+                          {new Date(transaction.date).toLocaleDateString("pt-BR")}
                         </p>
                         {category && (
                           <Badge variant="outline" className="text-xs">
@@ -249,10 +242,13 @@ export function DashboardOverview() {
                         )}
                       </div>
                     </div>
-                    <span className={`text-sm font-bold ${
-                      transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
+                    <span
+                      className={`text-sm font-bold flex-shrink-0 ${
+                        transaction.type === "income" ? "text-green-600" : "text-red-600"
+                      }`}
+                    >
+                      {transaction.type === "income" ? "+" : "-"}
+                      {formatCurrency(transaction.amount)}
                     </span>
                   </div>
                 )
@@ -263,17 +259,17 @@ export function DashboardOverview() {
       </div>
 
       {/* Alertas e Avisos */}
-      {(pendingTransactions.length > 0 || creditCards.some(card => (card.currentBalance / card.limit) > 0.8)) && (
+      {(pendingTransactions.length > 0 || creditCards.some((card) => card.currentBalance / card.limit > 0.8)) && (
         <Card className="border-orange-200 bg-orange-50">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-orange-800">
+            <CardTitle className="flex items-center gap-2 text-orange-800 text-base sm:text-lg">
               <AlertTriangle className="h-4 w-4" />
               Alertas
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             {pendingTransactions.length > 0 && (
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="text-orange-600">
                   {pendingTransactions.length} transação(ões) pendente(s)
                 </Badge>
@@ -282,42 +278,41 @@ export function DashboardOverview() {
                 </span>
               </div>
             )}
-            {creditCards.filter(card => (card.currentBalance / card.limit) > 0.8).map(card => (
-              <div key={card.id} className="flex items-center gap-2">
-                <Badge variant="outline" className="text-red-600">
-                  Cartão {card.name}
-                </Badge>
-                <span className="text-sm text-red-700">
-                  {((card.currentBalance / card.limit) * 100).toFixed(1)}% do limite usado
-                </span>
-              </div>
-            ))}
+            {creditCards
+              .filter((card) => card.currentBalance / card.limit > 0.8)
+              .map((card) => (
+                <div key={card.id} className="flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className="text-red-600">
+                    Cartão {card.name}
+                  </Badge>
+                  <span className="text-sm text-red-700">
+                    {((card.currentBalance / card.limit) * 100).toFixed(1)}% do limite usado
+                  </span>
+                </div>
+              ))}
           </CardContent>
         </Card>
       )}
 
       {/* Top Categorias de Gastos */}
-      {expensesByCategory.filter(c => c.totalExpenses > 0).length > 0 && (
+      {expensesByCategory.filter((c) => c.totalExpenses > 0).length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Principais Categorias de Gastos</CardTitle>
+            <CardTitle className="text-base sm:text-lg">Principais Categorias de Gastos</CardTitle>
             <CardDescription>Categorias com maiores despesas efetivadas</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {expensesByCategory
-                .filter(category => category.totalExpenses > 0)
+                .filter((category) => category.totalExpenses > 0)
                 .slice(0, 5)
                 .map((category) => (
                   <div key={category.id} className="flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: category.color }}
-                      />
-                      <span className="text-sm font-medium">{category.name}</span>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: category.color }} />
+                      <span className="text-sm font-medium truncate">{category.name}</span>
                     </div>
-                    <span className="text-sm font-bold text-red-600">
+                    <span className="text-sm font-bold text-red-600 flex-shrink-0 ml-2">
                       {formatCurrency(category.totalExpenses)}
                     </span>
                   </div>
