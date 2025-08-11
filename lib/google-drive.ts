@@ -134,6 +134,8 @@ export class GoogleDriveManager {
             this.tokenClient = window.google.accounts.oauth2.initTokenClient({
               client_id: clientId,
               scope: "https://www.googleapis.com/auth/drive.file",
+              redirect_uri: `${currentOrigin}`,
+              ux_mode: "popup",
               callback: (response: any) => {
                 if (response.error) {
                   console.error("Token client error:", response.error)
@@ -198,7 +200,18 @@ export class GoogleDriveManager {
           this.tokenClient.callback = (response: any) => {
             if (response.error) {
               console.error("Sign-in error:", response.error)
-              reject(new Error(`Sign-in failed: ${response.error}`))
+
+              if (response.error === "access_denied") {
+                reject(
+                  new Error(
+                    "Access denied. Please check your Google Cloud Console configuration:\n1. Add your domain to 'Authorized JavaScript origins'\n2. Add your domain to 'Authorized redirect URIs'\n3. Make sure the OAuth consent screen is configured",
+                  ),
+                )
+              } else if (response.error === "popup_closed_by_user") {
+                reject(new Error("Sign-in was cancelled by user"))
+              } else {
+                reject(new Error(`Sign-in failed: ${response.error}`))
+              }
               return
             }
             this.accessToken = response.access_token
@@ -207,7 +220,10 @@ export class GoogleDriveManager {
             resolve(true)
           }
 
-          this.tokenClient.requestAccessToken({ prompt: "consent" })
+          this.tokenClient.requestAccessToken({
+            prompt: "consent",
+            hint: window.location.origin,
+          })
         } catch (error) {
           reject(error)
         }
