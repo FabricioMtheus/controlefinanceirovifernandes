@@ -93,17 +93,7 @@ export class GoogleDriveManager {
       this.credentialsAvailable = true
 
       const currentOrigin = window.location.origin
-      const isLocalhost = currentOrigin.includes("localhost") || currentOrigin.includes("127.0.0.1")
-      const isVercelPreview = currentOrigin.includes(".vercel.app")
-
-      if (isVercelPreview && !isLocalhost) {
-        console.warn("Vercel preview domain detected. Google OAuth may not be configured for this domain.")
-        this.domainError = true
-        this.errorMessage =
-          "Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console."
-        resolve()
-        return
-      }
+      console.log("Initializing Google API for domain:", currentOrigin)
 
       const timeoutId = setTimeout(() => {
         console.warn("Google API initialization timed out")
@@ -184,18 +174,8 @@ export class GoogleDriveManager {
         throw new Error("Google Drive credentials not configured")
       }
 
-      if (this.domainError) {
-        throw new Error("Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console.")
-      }
-
       if (!this.isInitialized || !this.auth2) {
         await this.loadGoogleAPI()
-
-        if (this.domainError) {
-          throw new Error(
-            "Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console.",
-          )
-        }
 
         if (!this.credentialsAvailable) {
           throw new Error("Google Drive credentials not configured")
@@ -221,7 +201,14 @@ export class GoogleDriveManager {
       console.log("Google sign-in successful:", this.isSignedIn)
       return this.isSignedIn
     } catch (error) {
-      console.error("Google sign-in failed:", error)
+      if (error instanceof Error && error.message.includes("popup_closed_by_user")) {
+        throw new Error("Sign-in was cancelled by user")
+      } else if (
+        error instanceof Error &&
+        (error.message.includes("idpiframe_initialization_failed") || error.message.includes("Not a valid origin"))
+      ) {
+        throw new Error("Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console.")
+      }
       throw error
     }
   }
