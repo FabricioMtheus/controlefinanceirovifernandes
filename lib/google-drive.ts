@@ -20,10 +20,14 @@ export class GoogleDriveManager {
   private credentialsAvailable = false
   private domainError = false
   private errorMessage = ""
+  private initializationPromise: Promise<void> | null = null
 
   constructor() {
     if (typeof window !== "undefined") {
-      this.loadGoogleAPI()
+      this.initializationPromise = this.loadGoogleAPI().catch((error) => {
+        console.warn("Google API initialization failed:", error)
+        this.errorMessage = "Failed to initialize Google API"
+      })
     }
   }
 
@@ -37,7 +41,12 @@ export class GoogleDriveManager {
       // Check if script is already loaded
       if (window.gapi) {
         this.gapi = window.gapi
-        this.initializeGAPI().then(resolve).catch(reject)
+        this.initializeGAPI()
+          .then(resolve)
+          .catch((error) => {
+            console.warn("Google API initialization failed:", error)
+            resolve() // Resolve instead of reject to prevent unhandled promise
+          })
         return
       }
 
@@ -46,9 +55,18 @@ export class GoogleDriveManager {
       script.src = "https://apis.google.com/js/api.js"
       script.onload = () => {
         this.gapi = window.gapi
-        this.initializeGAPI().then(resolve).catch(reject)
+        this.initializeGAPI()
+          .then(resolve)
+          .catch((error) => {
+            console.warn("Google API initialization failed:", error)
+            resolve() // Resolve instead of reject to prevent unhandled promise
+          })
       }
-      script.onerror = () => reject(new Error("Failed to load Google API script"))
+      script.onerror = () => {
+        console.warn("Failed to load Google API script")
+        this.errorMessage = "Failed to load Google API script"
+        resolve() // Resolve instead of reject to prevent unhandled promise
+      }
       document.head.appendChild(script)
     })
   }
@@ -87,8 +105,15 @@ export class GoogleDriveManager {
         return
       }
 
+      const timeoutId = setTimeout(() => {
+        console.warn("Google API initialization timed out")
+        this.errorMessage = "Google API initialization timed out"
+        resolve()
+      }, 15000)
+
       this.gapi.load("client:auth2", {
         callback: async () => {
+          clearTimeout(timeoutId)
           try {
             await this.gapi.client.init({
               apiKey: apiKey,
@@ -107,14 +132,13 @@ export class GoogleDriveManager {
                 this.isSignedIn = false
               }
               console.log("Google API initialized successfully")
-              resolve()
             } else {
-              console.error("Failed to get auth instance")
+              console.warn("Failed to get auth instance")
               this.errorMessage = "Failed to get Google auth instance"
-              resolve()
             }
+            resolve()
           } catch (error: any) {
-            console.error("Failed to initialize Google API:", error)
+            console.warn("Failed to initialize Google API:", error)
             if (
               error?.error === "idpiframe_initialization_failed" ||
               (error?.details && error.details.includes("Not a valid origin")) ||
@@ -133,14 +157,16 @@ export class GoogleDriveManager {
           }
         },
         onerror: (error: any) => {
-          console.error("Failed to load Google API libraries:", error)
+          clearTimeout(timeoutId)
+          console.warn("Failed to load Google API libraries:", error)
           this.domainError = true
           this.errorMessage = "Failed to load Google API libraries. Domain may not be authorized."
           resolve()
         },
         timeout: 10000,
         ontimeout: () => {
-          console.error("Google API loading timed out")
+          clearTimeout(timeoutId)
+          console.warn("Google API loading timed out")
           this.errorMessage = "Google API loading timed out"
           resolve()
         },
@@ -150,6 +176,10 @@ export class GoogleDriveManager {
 
   async signIn(): Promise<boolean> {
     try {
+      if (this.initializationPromise) {
+        await this.initializationPromise
+      }
+
       if (!this.credentialsAvailable) {
         throw new Error("Google Drive credentials not configured")
       }
