@@ -18,6 +18,8 @@ export class GoogleDriveManager {
   private gapi: any = null
   private auth2: any = null
   private credentialsAvailable = false
+  private domainError = false
+  private errorMessage = ""
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -65,6 +67,7 @@ export class GoogleDriveManager {
       if (!apiKey || !clientId) {
         console.warn("Google API credentials not configured. Google Drive features will be disabled.")
         this.credentialsAvailable = false
+        this.errorMessage = "Google API credentials not configured"
         resolve()
         return
       }
@@ -94,15 +97,33 @@ export class GoogleDriveManager {
               resolve()
             } else {
               console.error("Failed to get auth instance")
+              this.errorMessage = "Failed to get Google auth instance"
               resolve()
             }
-          } catch (error) {
+          } catch (error: any) {
             console.error("Failed to initialize Google API:", error)
+            if (
+              error?.error === "idpiframe_initialization_failed" ||
+              (error?.details && error.details.includes("Not a valid origin"))
+            ) {
+              this.domainError = true
+              this.errorMessage =
+                "Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console."
+            } else {
+              this.errorMessage = "Failed to initialize Google API"
+            }
             resolve()
           }
         },
         onerror: (error: any) => {
           console.error("Failed to load Google API libraries:", error)
+          if (error?.error === "idpiframe_initialization_failed") {
+            this.domainError = true
+            this.errorMessage =
+              "Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console."
+          } else {
+            this.errorMessage = "Failed to load Google API libraries"
+          }
           resolve()
         },
       })
@@ -115,8 +136,17 @@ export class GoogleDriveManager {
         throw new Error("Google Drive credentials not configured")
       }
 
+      if (this.domainError) {
+        throw new Error("Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console.")
+      }
+
       if (!this.isInitialized) {
         await this.loadGoogleAPI()
+        if (this.domainError) {
+          throw new Error(
+            "Domain not authorized for Google OAuth. Please add this domain to your Google Cloud Console.",
+          )
+        }
       }
 
       if (!this.auth2) {
@@ -168,8 +198,16 @@ export class GoogleDriveManager {
     }
   }
 
+  getErrorMessage(): string {
+    return this.errorMessage
+  }
+
+  isDomainError(): boolean {
+    return this.domainError
+  }
+
   isGoogleDriveAvailable(): boolean {
-    return this.credentialsAvailable && this.isInitialized
+    return this.credentialsAvailable && this.isInitialized && !this.domainError
   }
 
   async uploadFile(fileName: string, content: string): Promise<string> {

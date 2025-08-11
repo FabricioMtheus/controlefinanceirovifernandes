@@ -31,6 +31,7 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
+  AlertTriangle,
 } from "lucide-react"
 import { cleanApiClient } from "@/lib/api-clean"
 import { googleDriveManager } from "@/lib/google-drive"
@@ -70,7 +71,13 @@ export function DataManager() {
     } catch (error) {
       console.error("Google sign in error:", error)
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
-      if (errorMessage.includes("credentials not configured")) {
+
+      if (errorMessage.includes("Domain not authorized")) {
+        showMessage(
+          "error",
+          "Domínio não autorizado. Adicione este domínio ao seu Google Cloud Console nas configurações OAuth.",
+        )
+      } else if (errorMessage.includes("credentials not configured")) {
         showMessage(
           "error",
           "Google Drive não configurado. Configure as credenciais GOOGLE_API_KEY e GOOGLE_CLIENT_ID nas variáveis de ambiente.",
@@ -378,18 +385,41 @@ export function DataManager() {
                 </Badge>
               </div>
 
-              {!isGoogleConnected && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
-                    <strong>Para usar o Google Drive:</strong> Configure as variáveis de ambiente
-                    NEXT_PUBLIC_GOOGLE_API_KEY e NEXT_PUBLIC_GOOGLE_CLIENT_ID no seu projeto.
-                  </p>
+              {!isGoogleConnected && !googleDriveManager.isGoogleDriveAvailable() && (
+                <div className="space-y-3">
+                  {!googleDriveManager.getErrorMessage().includes("credentials") &&
+                    googleDriveManager.isDomainError() && (
+                      <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="h-4 w-4 text-orange-600 mt-0.5" />
+                          <div className="text-sm text-orange-800">
+                            <p className="font-medium">Domínio não autorizado</p>
+                            <p className="mt-1">
+                              Este domínio não está autorizado no Google Cloud Console. Para usar o Google Drive:
+                            </p>
+                            <ol className="mt-2 ml-4 list-decimal space-y-1">
+                              <li>Acesse o Google Cloud Console</li>
+                              <li>Vá para "APIs & Services" → "Credentials"</li>
+                              <li>Edite seu OAuth 2.0 Client ID</li>
+                              <li>Adicione este domínio aos "Authorized JavaScript origins"</li>
+                            </ol>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <strong>Para usar o Google Drive:</strong> Configure as variáveis de ambiente
+                      NEXT_PUBLIC_GOOGLE_API_KEY e NEXT_PUBLIC_GOOGLE_CLIENT_ID no seu projeto.
+                    </p>
+                  </div>
                 </div>
               )}
 
               <div className="flex gap-2">
                 {!isGoogleConnected ? (
-                  <Button onClick={handleGoogleSignIn} disabled={loading}>
+                  <Button onClick={handleGoogleSignIn} disabled={loading || googleDriveManager.isDomainError()}>
                     {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Cloud className="mr-2 h-4 w-4" />}
                     Conectar ao Google Drive
                   </Button>
