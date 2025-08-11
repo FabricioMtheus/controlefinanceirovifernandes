@@ -69,7 +69,6 @@ export function DataManager() {
         showMessage("error", "Falha ao conectar com Google Drive")
       }
     } catch (error) {
-      console.error("Google sign in error:", error)
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
 
       if (errorMessage.includes("Domain not authorized")) {
@@ -83,6 +82,7 @@ export function DataManager() {
           "Google Drive não configurado. Configure as credenciais GOOGLE_API_KEY e GOOGLE_CLIENT_ID nas variáveis de ambiente.",
         )
       } else {
+        console.error("Google sign in error:", error)
         showMessage("error", "Erro ao conectar com Google Drive: " + errorMessage)
       }
     } finally {
