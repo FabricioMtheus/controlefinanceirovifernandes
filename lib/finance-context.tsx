@@ -119,6 +119,23 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
   const [creditCards, setCreditCards] = useState<CreditCard[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
+  const recalculateAccountBalances = (accountsList: Account[], transactionsList: Transaction[]) => {
+    return accountsList.map((account) => {
+      const accountTransactions = transactionsList.filter((t) => t.account_id === account.id && t.efetivada)
+
+      const transactionTotal = accountTransactions.reduce((sum, transaction) => {
+        const category = categories.find((c) => c.id === transaction.category_id)
+        const isIncome = category?.type === "income"
+        return sum + (isIncome ? transaction.amount : -transaction.amount)
+      }, 0)
+
+      return {
+        ...account,
+        balance: account.initial_balance + transactionTotal,
+      }
+    })
+  }
+
   // Load all data
   const loadData = async () => {
     try {
@@ -145,9 +162,6 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
         icon: category.icon || "Tag",
       }))
 
-      setAccounts(validAccounts)
-      setCategories(validCategories)
-
       // Migrar transações antigas que não têm o campo efetivada
       const migratedTransactions = (data.transactions || []).map((transaction) => ({
         ...transaction,
@@ -155,7 +169,12 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
         category_id: transaction.category_id || transaction.category || "",
         account_id: transaction.account_id || transaction.account || "",
       }))
+
+      setCategories(validCategories)
       setTransactions(migratedTransactions)
+
+      const accountsWithUpdatedBalances = recalculateAccountBalances(validAccounts, migratedTransactions)
+      setAccounts(accountsWithUpdatedBalances)
 
       setPendingTransactions(data.pending_transactions || [])
       setCreditCards(data.credit_cards || [])
@@ -170,6 +189,13 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (accounts.length > 0 && categories.length > 0) {
+      const updatedAccounts = recalculateAccountBalances(accounts, transactions)
+      setAccounts(updatedAccounts)
+    }
+  }, [transactions])
 
   // Account methods
   const addAccount = (account: Account) => {

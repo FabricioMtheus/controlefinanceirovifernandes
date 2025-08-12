@@ -26,6 +26,7 @@ export class GoogleDriveManager {
 
   constructor() {
     if (typeof window !== "undefined") {
+      this.loadSavedToken()
       this.initializationPromise = this.loadGoogleAPI().catch((error) => {
         console.warn("Google API initialization failed:", error)
         this.errorMessage = "Failed to initialize Google API"
@@ -143,9 +144,14 @@ export class GoogleDriveManager {
                 }
                 this.accessToken = response.access_token
                 this.isSignedIn = true
+                this.saveToken(response.access_token)
                 console.log("Google sign-in successful")
               },
             })
+
+            if (this.accessToken) {
+              this.gapi.client.setToken({ access_token: this.accessToken })
+            }
 
             this.isInitialized = true
             console.log("Google API initialized successfully with new Identity Services")
@@ -171,6 +177,48 @@ export class GoogleDriveManager {
         },
       })
     })
+  }
+
+  private loadSavedToken(): void {
+    try {
+      const savedToken = localStorage.getItem("google_drive_token")
+      const tokenExpiry = localStorage.getItem("google_drive_token_expiry")
+
+      if (savedToken && tokenExpiry) {
+        const expiryTime = Number.parseInt(tokenExpiry)
+        if (Date.now() < expiryTime) {
+          this.accessToken = savedToken
+          this.isSignedIn = true
+          console.log("Restored Google Drive session from localStorage")
+        } else {
+          // Token expired, remove it
+          localStorage.removeItem("google_drive_token")
+          localStorage.removeItem("google_drive_token_expiry")
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to load saved Google Drive token:", error)
+    }
+  }
+
+  private saveToken(token: string): void {
+    try {
+      // Google tokens typically expire in 1 hour
+      const expiryTime = Date.now() + 60 * 60 * 1000
+      localStorage.setItem("google_drive_token", token)
+      localStorage.setItem("google_drive_token_expiry", expiryTime.toString())
+    } catch (error) {
+      console.warn("Failed to save Google Drive token:", error)
+    }
+  }
+
+  private clearSavedToken(): void {
+    try {
+      localStorage.removeItem("google_drive_token")
+      localStorage.removeItem("google_drive_token_expiry")
+    } catch (error) {
+      console.warn("Failed to clear saved Google Drive token:", error)
+    }
   }
 
   async signIn(): Promise<boolean> {
@@ -220,6 +268,7 @@ export class GoogleDriveManager {
             }
             this.accessToken = response.access_token
             this.isSignedIn = true
+            this.saveToken(response.access_token)
             this.gapi.client.setToken({ access_token: this.accessToken })
             resolve(true)
           }
@@ -254,6 +303,7 @@ export class GoogleDriveManager {
 
       this.accessToken = null
       this.isSignedIn = false
+      this.clearSavedToken()
       this.gapi.client.setToken(null)
     } catch (error) {
       console.error("Google sign-out failed:", error)
