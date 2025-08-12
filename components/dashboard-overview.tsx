@@ -9,7 +9,7 @@ import { formatCurrency } from "@/lib/currency-formatter"
 export function DashboardOverview() {
   const { accounts, transactions, categories, creditCards } = useFinance()
 
-  // Calcular saldo total das contas
+  // Calcular saldo total das contas (já inclui saldo inicial + transações efetivadas)
   const totalAccountBalance = accounts.reduce((sum, account) => sum + account.balance, 0)
 
   // Separar transações efetivadas e pendentes
@@ -28,13 +28,12 @@ export function DashboardOverview() {
 
   const pendingExpenses = pendingTransactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + t.amount, 0)
 
-  // Saldo total real (considerando apenas transações efetivadas)
-  const totalBalance = totalAccountBalance + effectiveIncome - effectiveExpenses
+  const totalBalance = totalAccountBalance
 
   // Economia (receitas - despesas efetivadas)
   const savings = effectiveIncome - effectiveExpenses
 
-  // Saldo projetado (incluindo pendentes)
+  // Saldo projetado (saldo atual + transações pendentes)
   const projectedBalance = totalBalance + pendingIncome - pendingExpenses
 
   // Estatísticas dos cartões de crédito
