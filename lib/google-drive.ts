@@ -133,7 +133,7 @@ export class GoogleDriveManager {
 
             this.tokenClient = window.google.accounts.oauth2.initTokenClient({
               client_id: clientId,
-              scope: "https://www.googleapis.com/auth/drive.file",
+              scope: "https://www.googleapis.com/auth/drive",
               redirect_uri: `${currentOrigin}`,
               ux_mode: "popup",
               callback: (response: any) => {
@@ -204,7 +204,11 @@ export class GoogleDriveManager {
               if (response.error === "access_denied") {
                 reject(
                   new Error(
-                    "Access denied. Please check your Google Cloud Console configuration:\n1. Add your domain to 'Authorized JavaScript origins'\n2. Add your domain to 'Authorized redirect URIs'\n3. Make sure the OAuth consent screen is configured",
+                    "Acesso negado. Seu app Google OAuth está em modo de teste. Para resolver:\n\n" +
+                      "1. Vá para Google Cloud Console → APIs & Services → OAuth consent screen\n" +
+                      "2. Na seção 'Test users', adicione seu email\n" +
+                      "3. OU mude o status de 'Testing' para 'In production'\n\n" +
+                      "Verifique também se o domínio está em 'Authorized JavaScript origins'",
                   ),
                 )
               } else if (response.error === "popup_closed_by_user") {
@@ -289,7 +293,6 @@ export class GoogleDriveManager {
 
       const metadata = {
         name: fileName,
-        parents: ["appDataFolder"],
       }
 
       const multipartRequestBody =
@@ -331,7 +334,7 @@ export class GoogleDriveManager {
       }
 
       const response = await this.gapi.client.drive.files.list({
-        q: "parents in 'appDataFolder' and name contains 'financial-backup'",
+        q: "name contains 'financial-backup' and trashed=false",
         fields: "files(id,name,createdTime,modifiedTime,size)",
         orderBy: "modifiedTime desc",
       })

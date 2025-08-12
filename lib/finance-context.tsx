@@ -124,20 +124,48 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
     try {
       setIsLoading(true)
       const data = await cleanApiClient.loadData()
-      setAccounts(data.accounts || [])
-      setCategories(data.categories || [])
-      
+
+      const validAccounts = (data.accounts || []).map((account) => ({
+        ...account,
+        id: account.id || Date.now().toString(),
+        name: account.name || "Conta sem nome",
+        type: account.type || "checking",
+        balance: account.balance || 0,
+        initial_balance: account.initial_balance || 0,
+        color: account.color || "#3b82f6",
+        icon: account.icon || "CreditCard",
+      }))
+
+      const validCategories = (data.categories || []).map((category) => ({
+        ...category,
+        id: category.id || Date.now().toString(),
+        name: category.name || "Categoria sem nome",
+        type: category.type || "expense",
+        color: category.color || "#ef4444",
+        icon: category.icon || "Tag",
+      }))
+
+      setAccounts(validAccounts)
+      setCategories(validCategories)
+
       // Migrar transações antigas que não têm o campo efetivada
-      const migratedTransactions = (data.transactions || []).map(transaction => ({
+      const migratedTransactions = (data.transactions || []).map((transaction) => ({
         ...transaction,
-        efetivada: transaction.efetivada !== undefined ? transaction.efetivada : true
+        efetivada: transaction.efetivada !== undefined ? transaction.efetivada : true,
+        category_id: transaction.category_id || transaction.category || "",
+        account_id: transaction.account_id || transaction.account || "",
       }))
       setTransactions(migratedTransactions)
-      
+
       setPendingTransactions(data.pending_transactions || [])
       setCreditCards(data.credit_cards || [])
     } catch (error) {
       console.error("Error loading data:", error)
+      setAccounts([])
+      setCategories([])
+      setTransactions([])
+      setPendingTransactions([])
+      setCreditCards([])
     } finally {
       setIsLoading(false)
     }
