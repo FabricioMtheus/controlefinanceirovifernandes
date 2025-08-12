@@ -20,6 +20,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Trash2, Edit, Plus, Building, CreditCard, PiggyBank, Wallet, Loader2 } from "lucide-react"
 import { apiClient } from "@/lib/api"
+import { CurrencyInput } from "@/components/ui/currency-input"
 
 interface Account {
   id: string
@@ -38,7 +39,7 @@ export function AccountsManager() {
   const [formData, setFormData] = useState({
     name: "",
     type: "checking" as Account["type"],
-    balance: "",
+    balance: 0,
     bank: "",
   })
 
@@ -98,7 +99,7 @@ export function AccountsManager() {
     const accountData = {
       name: formData.name,
       type: formData.type,
-      balance: Number.parseFloat(formData.balance) || 0,
+      balance: formData.balance,
       bank: formData.bank || undefined,
     }
 
@@ -119,7 +120,7 @@ export function AccountsManager() {
   }
 
   const resetForm = () => {
-    setFormData({ name: "", type: "checking", balance: "", bank: "" })
+    setFormData({ name: "", type: "checking", balance: 0, bank: "" })
     setEditingAccount(null)
     setIsDialogOpen(false)
   }
@@ -129,7 +130,7 @@ export function AccountsManager() {
     setFormData({
       name: account.name,
       type: account.type,
-      balance: account.balance.toString(),
+      balance: account.balance,
       bank: account.bank || "",
     })
     setIsDialogOpen(true)
@@ -206,14 +207,11 @@ export function AccountsManager() {
 
               <div>
                 <Label htmlFor="balance">Saldo Atual</Label>
-                <Input
+                <CurrencyInput
                   id="balance"
-                  type="number"
-                  step="0.01"
                   value={formData.balance}
-                  onChange={(e) => setFormData({ ...formData, balance: e.target.value })}
-                  placeholder="0,00"
-                  required
+                  onChange={(value) => setFormData({ ...formData, balance: value })}
+                  placeholder="R$ 0,00"
                 />
               </div>
 

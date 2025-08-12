@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog"
 import { Trash2, Edit, Plus, Calendar, Loader2 } from "lucide-react"
 import { apiClient } from "@/lib/api"
+import { CurrencyInput } from "@/components/ui/currency-input"
 
 interface CardDetails {
   id: string
@@ -42,8 +43,8 @@ export function CreditCardManager() {
   const [formData, setFormData] = useState({
     name: "",
     last_four_digits: "",
-    limit: "",
-    current_balance: "",
+    limit: 0,
+    current_balance: 0,
     due_date: "",
     closing_date: "",
     brand: "",
@@ -118,8 +119,8 @@ export function CreditCardManager() {
     const cardData = {
       name: formData.name,
       last_four_digits: formData.last_four_digits,
-      limit: Number.parseFloat(formData.limit) || 0,
-      current_balance: Number.parseFloat(formData.current_balance) || 0,
+      limit: formData.limit,
+      current_balance: formData.current_balance,
       due_date: Number.parseInt(formData.due_date) || 1,
       closing_date: Number.parseInt(formData.closing_date) || 1,
       brand: formData.brand,
@@ -145,8 +146,8 @@ export function CreditCardManager() {
     setFormData({
       name: "",
       last_four_digits: "",
-      limit: "",
-      current_balance: "",
+      limit: 0,
+      current_balance: 0,
       due_date: "",
       closing_date: "",
       brand: "",
@@ -160,8 +161,8 @@ export function CreditCardManager() {
     setFormData({
       name: card.name,
       last_four_digits: card.last_four_digits,
-      limit: card.limit.toString(),
-      current_balance: card.current_balance.toString(),
+      limit: card.limit,
+      current_balance: card.current_balance,
       due_date: card.due_date.toString(),
       closing_date: card.closing_date.toString(),
       brand: card.brand,
@@ -253,27 +254,21 @@ export function CreditCardManager() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="limit">Limite</Label>
-                  <Input
+                  <CurrencyInput
                     id="limit"
-                    type="number"
-                    step="0.01"
                     value={formData.limit}
-                    onChange={(e) => setFormData({ ...formData, limit: e.target.value })}
-                    placeholder="5000,00"
-                    required
+                    onChange={(value) => setFormData({ ...formData, limit: value })}
+                    placeholder="R$ 5.000,00"
                   />
                 </div>
 
                 <div>
                   <Label htmlFor="current_balance">Saldo Atual</Label>
-                  <Input
+                  <CurrencyInput
                     id="current_balance"
-                    type="number"
-                    step="0.01"
                     value={formData.current_balance}
-                    onChange={(e) => setFormData({ ...formData, current_balance: e.target.value })}
-                    placeholder="1250,00"
-                    required
+                    onChange={(value) => setFormData({ ...formData, current_balance: value })}
+                    placeholder="R$ 1.250,00"
                   />
                 </div>
               </div>

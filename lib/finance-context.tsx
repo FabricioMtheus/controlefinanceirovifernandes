@@ -118,6 +118,7 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
   const [pendingTransactions, setPendingTransactions] = useState<PendingTransaction[]>([])
   const [creditCards, setCreditCards] = useState<CreditCard[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isInitialLoad, setIsInitialLoad] = useState(true)
 
   const recalculateAccountBalances = (accountsList: Account[], transactionsList: Transaction[]) => {
     return accountsList.map((account) => {
@@ -136,7 +137,6 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
     })
   }
 
-  // Load all data
   const loadData = async () => {
     try {
       setIsLoading(true)
@@ -162,7 +162,6 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
         icon: category.icon || "Tag",
       }))
 
-      // Migrar transações antigas que não têm o campo efetivada
       const migratedTransactions = (data.transactions || []).map((transaction) => ({
         ...transaction,
         efetivada: transaction.efetivada !== undefined ? transaction.efetivada : true,
@@ -178,6 +177,8 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
 
       setPendingTransactions(data.pending_transactions || [])
       setCreditCards(data.credit_cards || [])
+
+      setIsInitialLoad(false)
     } catch (error) {
       console.error("Error loading data:", error)
       setAccounts([])
@@ -185,6 +186,7 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
       setTransactions([])
       setPendingTransactions([])
       setCreditCards([])
+      setIsInitialLoad(false)
     } finally {
       setIsLoading(false)
     }
@@ -197,148 +199,151 @@ export function FinanceProvider({ children }: FinanceProviderProps) {
     }
   }, [transactions])
 
-  // Account methods
+  useEffect(() => {
+    if (isInitialLoad) return
+    const timeoutId = setTimeout(() => {
+      cleanApiClient.saveAccounts(accounts)
+    }, 1000)
+    return () => clearTimeout(timeoutId)
+  }, [accounts, isInitialLoad])
+
+  useEffect(() => {
+    if (isInitialLoad) return
+    const timeoutId = setTimeout(() => {
+      cleanApiClient.saveCategories(categories)
+    }, 1000)
+    return () => clearTimeout(timeoutId)
+  }, [categories, isInitialLoad])
+
+  useEffect(() => {
+    if (isInitialLoad) return
+    const timeoutId = setTimeout(() => {
+      cleanApiClient.saveTransactions(transactions)
+    }, 1000)
+    return () => clearTimeout(timeoutId)
+  }, [transactions, isInitialLoad])
+
+  useEffect(() => {
+    if (isInitialLoad) return
+    const timeoutId = setTimeout(() => {
+      cleanApiClient.savePendingTransactions(pendingTransactions)
+    }, 1000)
+    return () => clearTimeout(timeoutId)
+  }, [pendingTransactions, isInitialLoad])
+
+  useEffect(() => {
+    if (isInitialLoad) return
+    const timeoutId = setTimeout(() => {
+      cleanApiClient.saveCreditCards(creditCards)
+    }, 1000)
+    return () => clearTimeout(timeoutId)
+  }, [creditCards, isInitialLoad])
+
   const addAccount = (account: Account) => {
     const newAccounts = [...accounts, account]
     setAccounts(newAccounts)
-    cleanApiClient.saveAccounts(newAccounts)
   }
 
   const updateAccount = (account: Account) => {
     const newAccounts = accounts.map((a) => (a.id === account.id ? account : a))
     setAccounts(newAccounts)
-    cleanApiClient.saveAccounts(newAccounts)
   }
 
   const deleteAccount = (id: string) => {
     const newAccounts = accounts.filter((a) => a.id !== id)
     setAccounts(newAccounts)
-    cleanApiClient.saveAccounts(newAccounts)
   }
 
-  // Category methods
   const addCategory = (category: Category) => {
     const newCategories = [...categories, category]
     setCategories(newCategories)
-    cleanApiClient.saveCategories(newCategories)
   }
 
   const updateCategory = (category: Category) => {
     const newCategories = categories.map((c) => (c.id === category.id ? category : c))
     setCategories(newCategories)
-    cleanApiClient.saveCategories(newCategories)
   }
 
   const deleteCategory = (id: string) => {
     const newCategories = categories.filter((c) => c.id !== id)
     setCategories(newCategories)
-    cleanApiClient.saveCategories(newCategories)
   }
 
-  // Transaction methods
   const addTransaction = (transaction: Transaction) => {
     const newTransactions = [...transactions, transaction]
     setTransactions(newTransactions)
-    cleanApiClient.saveTransactions(newTransactions)
   }
 
   const updateTransaction = (transaction: Transaction) => {
     const newTransactions = transactions.map((t) => (t.id === transaction.id ? transaction : t))
     setTransactions(newTransactions)
-    cleanApiClient.saveTransactions(newTransactions)
   }
 
   const deleteTransaction = (id: string) => {
     const newTransactions = transactions.filter((t) => t.id !== id)
     setTransactions(newTransactions)
-    cleanApiClient.saveTransactions(newTransactions)
   }
 
-  // Pending transaction methods
   const addPendingTransaction = (transaction: PendingTransaction) => {
     const newPendingTransactions = [...pendingTransactions, transaction]
     setPendingTransactions(newPendingTransactions)
-    cleanApiClient.savePendingTransactions(newPendingTransactions)
   }
 
   const updatePendingTransaction = (transaction: PendingTransaction) => {
     const newPendingTransactions = pendingTransactions.map((t) => (t.id === transaction.id ? transaction : t))
     setPendingTransactions(newPendingTransactions)
-    cleanApiClient.savePendingTransactions(newPendingTransactions)
   }
 
   const deletePendingTransaction = (id: string) => {
     const newPendingTransactions = pendingTransactions.filter((t) => t.id !== id)
     setPendingTransactions(newPendingTransactions)
-    cleanApiClient.savePendingTransactions(newPendingTransactions)
   }
 
-  // Credit card methods
   const addCreditCard = (card: CreditCard) => {
     const newCreditCards = [...creditCards, card]
     setCreditCards(newCreditCards)
-    cleanApiClient.saveCreditCards(newCreditCards)
   }
 
   const updateCreditCard = (card: CreditCard) => {
     const newCreditCards = creditCards.map((c) => (c.id === card.id ? card : c))
     setCreditCards(newCreditCards)
-    cleanApiClient.saveCreditCards(newCreditCards)
   }
 
   const deleteCreditCard = (id: string) => {
     const newCreditCards = creditCards.filter((c) => c.id !== id)
     setCreditCards(newCreditCards)
-    cleanApiClient.saveCreditCards(newCreditCards)
   }
 
-  // Refresh data
   const refreshData = async () => {
     await loadData()
   }
 
-  // Load data on mount
   useEffect(() => {
     loadData()
   }, [])
 
   const value: FinanceContextType = {
-    // Data
     accounts,
     categories,
     transactions,
     pendingTransactions,
     creditCards,
-
-    // Loading state
     isLoading,
-
-    // Account methods
     addAccount,
     updateAccount,
     deleteAccount,
-
-    // Category methods
     addCategory,
     updateCategory,
     deleteCategory,
-
-    // Transaction methods
     addTransaction,
     updateTransaction,
     deleteTransaction,
-
-    // Pending transaction methods
     addPendingTransaction,
     updatePendingTransaction,
     deletePendingTransaction,
-
-    // Credit card methods
     addCreditCard,
     updateCreditCard,
     deleteCreditCard,
-
-    // Utility methods
     refreshData,
   }
 

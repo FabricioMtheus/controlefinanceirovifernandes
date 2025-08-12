@@ -20,8 +20,9 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
-import { Trash2, Edit, Plus, Repeat, Play, Pause, Loader2 } from "lucide-react"
+import { Trash2, Edit, Plus, Calendar, Repeat, Loader2 } from "lucide-react"
 import { apiClient } from "@/lib/api"
+import { CurrencyInput } from "@/components/ui/currency-input"
 
 interface RecurringTransaction {
   id: string
@@ -49,17 +50,14 @@ export function RecurringTransactions() {
   const [submitting, setSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     description: "",
-    amount: "",
-    type: "expense" as RecurringTransaction["type"],
+    amount: 0,
+    type: "income" as RecurringTransaction["type"],
     category: "",
     account: "Conta Corrente Principal",
     frequency: "monthly" as RecurringTransaction["frequency"],
-    day_of_month: "",
-    day_of_week: "",
-    start_date: new Date().toISOString().split("T")[0],
+    start_date: "",
     end_date: "",
     is_active: true,
-    notes: "",
   })
 
   const categories = {
@@ -125,21 +123,13 @@ export function RecurringTransactions() {
 
     const transactionData = {
       description: formData.description,
-      amount: Number.parseFloat(formData.amount) || 0,
+      amount: formData.amount,
       type: formData.type,
-      category: formData.category,
-      account: formData.account,
+      category: formData.category || null,
       frequency: formData.frequency,
-      day_of_month:
-        formData.frequency === "monthly" || formData.frequency === "yearly"
-          ? Number.parseInt(formData.day_of_month) || null
-          : null,
-      day_of_week: formData.frequency === "weekly" ? Number.parseInt(formData.day_of_week) || null : null,
       start_date: formData.start_date,
       end_date: formData.end_date || null,
       is_active: formData.is_active,
-      next_date: formData.start_date,
-      notes: formData.notes || null,
     }
 
     try {
@@ -165,17 +155,14 @@ export function RecurringTransactions() {
   const resetForm = () => {
     setFormData({
       description: "",
-      amount: "",
-      type: "expense",
+      amount: 0,
+      type: "income",
       category: "",
       account: "Conta Corrente Principal",
       frequency: "monthly",
-      day_of_month: "",
-      day_of_week: "",
-      start_date: new Date().toISOString().split("T")[0],
+      start_date: "",
       end_date: "",
       is_active: true,
-      notes: "",
     })
     setEditingTransaction(null)
     setIsDialogOpen(false)
@@ -185,17 +172,13 @@ export function RecurringTransactions() {
     setEditingTransaction(transaction)
     setFormData({
       description: transaction.description,
-      amount: transaction.amount.toString(),
+      amount: transaction.amount,
       type: transaction.type,
-      category: transaction.category,
-      account: transaction.account,
+      category: transaction.category || "",
       frequency: transaction.frequency,
-      day_of_month: transaction.day_of_month?.toString() || "",
-      day_of_week: transaction.day_of_week?.toString() || "",
       start_date: transaction.start_date,
       end_date: transaction.end_date || "",
       is_active: transaction.is_active,
-      notes: transaction.notes || "",
     })
     setIsDialogOpen(true)
   }
@@ -296,14 +279,11 @@ export function RecurringTransactions() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="amount">Valor</Label>
-                  <Input
+                  <CurrencyInput
                     id="amount"
-                    type="number"
-                    step="0.01"
                     value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    placeholder="0,00"
-                    required
+                    onChange={(value) => setFormData({ ...formData, amount: value })}
+                    placeholder="R$ 0,00"
                   />
                 </div>
 
@@ -392,8 +372,10 @@ export function RecurringTransactions() {
                     type="number"
                     min="1"
                     max="31"
-                    value={formData.day_of_month}
-                    onChange={(e) => setFormData({ ...formData, day_of_month: e.target.value })}
+                    value={formData.day_of_month?.toString() || ""}
+                    onChange={(e) =>
+                      setFormData({ ...formData, day_of_month: Number.parseInt(e.target.value) || null })
+                    }
                     placeholder="15"
                     required
                   />
@@ -404,8 +386,8 @@ export function RecurringTransactions() {
                 <div>
                   <Label htmlFor="day_of_week">Dia da Semana</Label>
                   <Select
-                    value={formData.day_of_week}
-                    onValueChange={(value) => setFormData({ ...formData, day_of_week: value })}
+                    value={formData.day_of_week?.toString() || ""}
+                    onValueChange={(value) => setFormData({ ...formData, day_of_week: Number.parseInt(value) || null })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione o dia" />
@@ -459,7 +441,7 @@ export function RecurringTransactions() {
                 <Label htmlFor="notes">Observações (opcional)</Label>
                 <Textarea
                   id="notes"
-                  value={formData.notes}
+                  value={formData.notes || ""}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                   placeholder="Observações adicionais..."
                   rows={2}
@@ -490,7 +472,7 @@ export function RecurringTransactions() {
           {/* Transações Ativas */}
           <div>
             <h3 className="text-lg font-semibold text-green-700 mb-4 flex items-center gap-2">
-              <Play className="h-5 w-5" />
+              <Calendar className="h-5 w-5" />
               Transações Ativas ({activeTransactions.length})
             </h3>
             <div className="space-y-3">
@@ -543,7 +525,7 @@ export function RecurringTransactions() {
                               onClick={() => toggleActive(transaction.id)}
                               className="text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50"
                             >
-                              <Pause className="h-3 w-3" />
+                              <Repeat className="h-3 w-3" />
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => handleEdit(transaction)}>
                               <Edit className="h-3 w-3" />
@@ -570,7 +552,7 @@ export function RecurringTransactions() {
           {inactiveTransactions.length > 0 && (
             <div>
               <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center gap-2">
-                <Pause className="h-5 w-5" />
+                <Repeat className="h-5 w-5 text-gray-400" />
                 Transações Pausadas ({inactiveTransactions.length})
               </h3>
               <div className="space-y-3">
@@ -610,7 +592,7 @@ export function RecurringTransactions() {
                               onClick={() => toggleActive(transaction.id)}
                               className="text-green-600 hover:text-green-700 hover:bg-green-50"
                             >
-                              <Play className="h-3 w-3" />
+                              <Calendar className="h-3 w-3" />
                             </Button>
                             <Button variant="ghost" size="sm" onClick={() => handleEdit(transaction)}>
                               <Edit className="h-3 w-3" />
