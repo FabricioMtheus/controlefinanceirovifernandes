@@ -9,8 +9,17 @@ import { formatCurrency } from "@/lib/currency-formatter"
 export function DashboardOverview() {
   const { accounts, transactions, categories, creditCards } = useFinance()
 
-  // Calcular saldo total das contas (já inclui saldo inicial + transações efetivadas)
-  const totalAccountBalance = accounts.reduce((sum, account) => sum + account.balance, 0)
+  // Calcular saldo total das contas (saldo inicial + transações efetivadas por conta)
+  const totalAccountBalance = accounts.reduce((sum, account) => {
+    // Calcular transações efetivadas para esta conta específica
+    const accountTransactions = transactions.filter((t) => t.accountId === account.id && t.efetivada)
+    const accountIncome = accountTransactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0)
+    const accountExpenses = accountTransactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0)
+
+    // Saldo da conta = saldo inicial + receitas - despesas
+    const accountBalance = (account.balance || 0) + accountIncome - accountExpenses
+    return sum + accountBalance
+  }, 0)
 
   // Separar transações efetivadas e pendentes
   const effectiveTransactions = transactions.filter((t) => t.efetivada)
